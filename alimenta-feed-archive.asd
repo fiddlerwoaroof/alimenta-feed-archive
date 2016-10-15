@@ -8,6 +8,7 @@
                #:ironclad
                #:local-time
                #:serapeum
+               #:uiop
                #:ubiquitous
                #:yason)
   :serial t
