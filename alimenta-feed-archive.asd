@@ -3,14 +3,16 @@
   :author "Fiddlerwoaroof <fiddlerwoaroof@howit.is>"
   :license "MIT"
   :depends-on (#:alexandria
-               #:alimenta
-               #:fwoar.lisputils
-               #:ironclad
-               #:local-time
-               #:serapeum
-               #:uiop
-               #:ubiquitous
-               #:yason)
+	       #:alimenta
+	       #:fwoar.lisputils
+	       #:ironclad
+	       #:local-time
+	       #:serapeum
+	       #:ubiquitous
+	       #:uiop
+	       #:yason)
   :serial t
-  :components ((:file "feed-archive")))
+  :components ((:file "tools")
+	       (:file "yason-encoders")
+	       (:file "feed-archive")))
 

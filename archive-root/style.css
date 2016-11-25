@@ -1,3 +1,7 @@
+* {
+    box-sizing: border-box;
+}
+
 body {
   margin: 0px;
   font-family: 'Lato', 'Alegreya Sans', sans-serif;
@@ -17,20 +21,34 @@ body {
 
 a {
   color: #28b0b1;
+  border: thin solid transparent;
+}
+
+.current_feed a, .feeds a {
+  display: inline-block;
+  vertical-align: middle;
+  text-decoration: none;
+  cursor: pointer;
+  /*width: 100%;*/
+  margin-right: 1em;
   /*text-shadow: 0em 0em 0.1em #000*/
   /*,            0em 0em 0.2em #888;*/
 }
 
-a:hover, a:focus {
+a:hover {
+  border-color: #28b0b1;
+}
+
+a:focus {
   text-decoration: underline;
 }
 
-.left, .right {
+.right {
   overflow-y: auto;
 }
 
 .right {
-  width: 66vw;
+  width: 50vw;
   height: 100vh;
   box-sizing: border-box;
   position: absolute;
@@ -48,11 +66,12 @@ h1, h2, h3, h4, h5, h6 {
 
 .left {
   border-right: 4px #28b0b1 double;
-  width: 33vw;
+  box-shadow: 0px 0px 1em #28b0b1;
+  width: 50vw;
   height: 100vh;
+  overflow: hidden;
   box-sizing: border-box;
   position: absolute;
-  padding: 1em;
   display: block;
   left: 0;
 }
@@ -62,4 +81,38 @@ h1, h2, h3, h4, h5, h6 {
   max-width: 50vw;
   display: block;
   margin: auto;
+}
+
+.current_feed, .feeds {
+    overflow-x: hidden;
+    overflow-y: scroll;
+}
+
+.current_feed {
+    height: 100vh;
+    width: 25vw;
+    float: right;
+}
+
+.feeds {
+    height: 100vh;
+    width: 24vw;
+    float: left;
+    padding: 1em;
+    border-bottom: 5px #28b0b1 double;
+    box-shadow: 0px 0px 1em #28b0b1;
+}
+
+.feeds .title, .feeds .url {
+    white-space: nowrap;
+}
+
+.feeds .title {
+    font-size: 120%;
+}
+
+.feeds .url {
+    font-size: 75%;
+    padding-left: 2.5em;
+    margin-bottom: 0.5em;
 }

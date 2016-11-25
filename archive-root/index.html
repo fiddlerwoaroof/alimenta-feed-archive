@@ -1,51 +1,58 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <title></title>
-  <base href="<XXX: YOUR BASE URL HERE>" />
-  <link rel="stylesheet" href="style.css" />
-</head>
-<body>
-  <div id="container" v-cloak>
-    <div class="left">
-      <span class="pull-time">{{pull_time}}</span>
-      <!--<div v-for="url in feed_urls">{{url}}</div>-->
-      <div v-for="feed in feeds">
-        <a v-on:click="get_feed(feed.path)">
-          <span class="feed_url">{{feed.title}} &lt;{{feed.url}}&gt;</span>
-        </a>
-      </div>
+  <head>
+    <meta charset="UTF-8">
+    <title></title>
+    <base href="<XXX: YOUR BASE URL HERE>" />
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <div id="container" v-cloak>
+      <div class="left">
+	<div class="feeds">
+	  <span class="pull-time">{{pull_time}}</span>
+	  <!--<div v-for="url in feed_urls">{{url}}</div>-->
+	  <div v-for="feed in feeds">
+	    <a class="feed-link" v-on:click="get_feed(feed.path)" v-if="has_items(feed)">
+	      <div class="title">{{feed.title}}</div>
+	      <div class="url">
+		&lt;{{feed.url}}&gt;
+	      </div>
+	    </a>
+	  </div>
+	</div>
 
-      <div v-if="current_feed.title !== null" class="current_feed">
-        <h2>{{current_feed.title}}</h2>
-        <h3>{{current_feed.link}}</h3>
-        <div>{{current_feed.description}}</div>
-        <ul>
-          <li v-for="item in current_feed.items | orderBy 'path' -1">
-          <a v-on:click="get_item(item.path)">
-            <span class="feed_url">{{item.title}}</span>
-          </a>
-          </li>
-        </ul>
+	<div v-if="current_feed.title !== null && current_feed.items.length > 0" class="current_feed">
+	  <h2>{{current_feed.title}}</h2>
+	  <h3>{{current_feed.link}}</h3>
+	  <div>{{current_feed.description}}</div>
+	  <ul>
+	    <li v-for="item in current_feed.items | orderBy 'path' -1">
+	      <a v-on:click="get_item(item.path)">
+		<span class="feed_url">{{item.title}}</span>
+	      </a>
+	    </li>
+	  </ul>
+	</div>
+      </div>
+      <div class="right">
+	<div v-if="current_item.title !== null">
+	  <h2>
+	    <a href="{{current_item.link}}">{{current_item.title}}</a>
+	  </h2>
+	  <h3>{{current_item.author}}</h3>
+	  <div>{{{  item_content }}}</div>
+	</div>
       </div>
     </div>
-    <div class="right">
-      <div v-if="current_item.title !== null">
-        <h2>
-          <a href="{{current_item.link}}">{{current_item.title}}</a>
-        </h2>
-        <h3>{{current_item.author}}</h3>
-        <div>{{{  item_content }}}</div>
-      </div>
-    </div>
-  </div>
 
-  <script>
-    baseUrl = 'current'
-  </script>
-  <script src="vue.js"></script>
-  <script src="purify.js"></script>
-  <script src="run.js"></script>
-</body>
+    <script>
+      baseUrl = 'current'
+    </script>
+    <script src="vue.js"></script>
+    <script src="purify.js"></script>
+    <script src="es6-promise.min.js"></script>
+    <script src="fetch.js"></script>
+    <script src="run.js"></script>
+  </body>
 </html>
