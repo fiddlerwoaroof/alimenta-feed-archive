@@ -14,5 +14,6 @@
   :serial t
   :components ((:file "tools")
 	       (:file "yason-encoders")
+	       (:file "encoders")
 	       (:file "feed-archive")))
 

@@ -2,7 +2,7 @@
   (:use :cl :alexandria :serapeum :fw.lu)
   (:shadow :->)
   (:export :fix-pathname :sha256-string :get-id :older-than-a-week :-> :get-feed-store-name
-	   :store :get-item-store-name))
+	   :store :get-item-store-name :restart-once))
 
 (in-package :alimenta.feed-archive.tools)
 
@@ -52,16 +52,22 @@
 	       (sha256-string (alimenta:id item))
 	       ".json"))
 
-(defun get-item-store-name (item directory)
-  (let ((id (get-id item)))
-    (merge-pathnames (make-pathname :name id) directory)))
-
-(defun get-feed-store-name (feed directory)
-  (merge-pathnames (get-id feed)
-                   directory))
-
 (defun older-than-a-week (date)
   (let ((week-ago (local-time:timestamp- (local-time:now)
                                          7 :day)))
     (local-time:timestamp< date week-ago)))
+
+(defmacro restart-once ((restart-name (&rest restart-args) &body handler) &body body)
+  "Defines a restart that, the first time it's executed, runs a chunk of code and then,
+next time, it re-raises the exception."
+  (with-gensyms (start restarted)
+    `(let ((,restarted nil))
+       (tagbody ,start
+	  (restart-case
+	      (progn ,@body)
+	    (,restart-name ,restart-args
+	      ,@handler
+	      (unless ,restarted
+		(setf ,restarted t)
+		(go ,start))))))))
 
