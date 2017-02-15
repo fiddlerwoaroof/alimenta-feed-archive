@@ -28,7 +28,7 @@
   (yason:with-output (stream :indent t)
     (yason:encode-object feed)))
 
-(defmethod yason:encode ((item alimenta:item) &optional stream)
+(defmethod yason:encode-slots progn ((item alimenta:item))
   (with-accessors ((author alimenta::author)
 		   (content alimenta:content)
 		   (date alimenta:date)
@@ -36,13 +36,16 @@
 		   (link alimenta:link)
 		   (title alimenta:title)) item
     (let* ((date (local-time:format-timestring nil date)))
-      (yason:with-output (stream :indent t)
-	(yason:with-object ()
-	  (yason:encode-object-element "title" title)
-	  (yason:encode-object-element "date" date)
-	  (yason:encode-object-element "author" title)
-	  (yason:encode-object-element "id" (princ-to-string id))
-	  (yason:encode-object-element "link" link)
-	  (yason:encode-object-element "content" content)))))
+      (yason:with-object ()
+	(yason:encode-object-element "title" title)
+	(yason:encode-object-element "date" date)
+	(yason:encode-object-element "author" title)
+	(yason:encode-object-element "id" (princ-to-string id))
+	(yason:encode-object-element "link" link)
+	(yason:encode-object-element "content" content)))))
+
+(defmethod yason:encode ((item alimenta:item) &optional stream)
+  (yason:with-output (stream :indent t)
+    (yason:encode-slots item))
   item)
 

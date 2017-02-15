@@ -50,7 +50,7 @@
 	       (local-time:format-timestring nil (alimenta:date item))
 	       "-"
 	       (sha256-string (alimenta:id item))
-	       ".json"))
+	       #+nil ".json"))
 
 (defun older-than-a-week (date)
   (let ((week-ago (local-time:timestamp- (local-time:now)
