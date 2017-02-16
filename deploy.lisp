@@ -5,4 +5,4 @@
  #+sbcl save-lisp-and-die
  "feed-archiver"
  #+sbcl :executable  #+ccl :prepend-kernel t
- #+sbcl :toplevel #+ccl :toplevel-function #'alimenta.feed-archive::command-line-main)
+ #+sbcl :toplevel #+ccl :toplevel-function #'alimenta.feed-archive:command-line-main)

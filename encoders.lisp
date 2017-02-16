@@ -1,7 +1,7 @@
 (defpackage :alimenta.feed-archive.encoders
   (:use :cl :alexandria :serapeum :fw.lu :alimenta.feed-archive.tools)
   (:shadowing-import-from :alimenta.feed-archive.tools :->)
-  (:export :skip-item))
+  (:export :skip-item :the-condition :the-feed :feed-error))
 
 (in-package :alimenta.feed-archive.encoders)
 

@@ -1,6 +1,7 @@
 (defpackage :alimenta.feed-archive
   (:use :cl :alexandria :serapeum :fw.lu :alimenta.feed-archive.tools)
-  (:shadowing-import-from :alimenta.feed-archive.tools :->))
+  (:shadowing-import-from :alimenta.feed-archive.tools :->)
+  (:export #:init-feeds #:archive-feeds #:command-line-main))
 
 (in-package :alimenta.feed-archive)
 

@@ -29,7 +29,7 @@
     (yason:encode-object feed)))
 
 (defmethod yason:encode-slots progn ((item alimenta:item))
-  (with-accessors ((author alimenta::author)
+  (with-accessors ((author alimenta:author)
 		   (content alimenta:content)
 		   (date alimenta:date)
 		   (id alimenta:id)
