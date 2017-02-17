@@ -40,27 +40,26 @@
 	   (ubiquitous:value :feeds)
 	   :test #'equalp))
 
-(defun safe-pull-feed (feed-url)
+(defun safe-pull-feed (feed-url &aux (pop-times 0))
   "Handles date parsing errors in the feed: chronicity won't parse
    certain date formats, this catches the error and modifies the
    format to something chronicity can handle."
-  (let ((pop-times 0))
-    (flet ((pop-50-tokens (c)
-	     (declare (ignore c))
-	     (when (find-restart 'alimenta.rss::pop-token) 
-	       (if (< pop-times 50)
-		   (progn (incf pop-times)
-			  (format t "~&Processing error, trying to pop a token (popped ~d times)~%"
-				  pop-times)
-			  (alimenta.rss::pop-token))
-		   (continue)))))
-      (handler-bind ((warning #'muffle-warning)
-		     (error #'pop-50-tokens))
-	(format t "~&Tring to pull: ~a... " feed-url)
-	(prog1 (alimenta.pull-feed:pull-feed feed-url)
-	  ;; Why am I decf-ing here?
-	  (format t "... Success~%" feed-url)
-	  (decf pop-times))))))
+  (flet ((pop-50-tokens (c)
+	   (declare (ignore c))
+	   (when (find-restart 'alimenta:pop-token) 
+	     (if (< pop-times 50)
+		 (progn (incf pop-times)
+			(format t "~&Processing error, trying to pop a token (popped ~d times)~%"
+				pop-times)
+			(alimenta:pop-token))
+		 (continue)))))
+    (handler-bind ((warning #'muffle-warning)
+		   (error #'pop-50-tokens))
+      (format t "~&Trying to pull: ~a... " feed-url)
+      (prog1 (alimenta.pull-feed:pull-feed feed-url)
+	;; Why am I decf-ing here?
+	(format t "... Success~%")
+	(decf pop-times)))))
 
 (defun skip-feed ()
   (when-let ((restart (find-restart 'skip-feed)))
@@ -76,32 +75,32 @@
 	   (store feed pull-directory)))))
 
 (defun archive-feeds ()
-  (let ((pull-time (local-time:now)))
-    (let* ((pull-directory (get-store-directory-name pull-time)) 
-	   (paths (pull-and-store-feeds *feeds* pull-directory)))
-      (with-open-file (index (merge-pathnames "index.json" pull-directory) :direction :output)
-	(yason:with-output (index :indent t)
-	  (yason:with-object ()
-	    (yason:encode-object-element "pull-time" (local-time:format-timestring nil pull-time))
-	    (yason:encode-object-element "feed-urls" *feeds*)
-	    (yason:with-object-element ("feeds")
-	      (yason:with-array ()
-		(mapcar (lambda (url feed-data)
-			  (yason:with-object ()
-			    (yason:encode-object-element "url" url)
-			    (when feed-data
-			      (destructuring-bind (title path) feed-data
-				(yason:encode-object-element "title" title)
-				(yason:encode-object-element "path"
-							     (princ-to-string
-							      (uiop:enough-pathname path *feed-base*)))))))
-			*feeds*
-			paths)))))))))
+  (let* ((pull-time (local-time:now))
+	 (pull-directory (get-store-directory-name pull-time)) 
+	 (paths (pull-and-store-feeds *feeds* pull-directory)))
+    (with-open-file (index (merge-pathnames "index.json" pull-directory) :direction :output)
+      (feed-index index pull-time paths))))
+
+(defun feed-index (index pull-time paths)
+  (flet ((encode-feed-reference (url feed-data)
+	   (yason:with-object ()
+	     (yason:encode-object-element "url" url)
+	     (when feed-data
+	       (destructuring-bind (title path) feed-data
+		 (yason:encode-object-element "title" title)
+		 (yason:encode-object-element "path" (princ-to-string
+						      (uiop:enough-pathname path *feed-base*))))))))
+    (yason:with-output (index :indent t)
+      (yason:with-object ()
+	(yason:encode-object-element "pull-time" (local-time:format-timestring nil pull-time))
+	(yason:encode-object-element "feed-urls" *feeds*)
+	(yason:with-object-element ("feeds")
+	  (yason:with-array ()
+	    (mapcar #'encode-feed-reference *feeds* paths)))))))
 
 
 ;; This is an ungodly mess, we need to avoid funneling everything through fix-pathname-or-skip
 (defun command-line-main (&optional (feed-list-initializer #'init-feeds))
-  (declare (optimize (debug 3)))
   (labels ((feed-type-unsupported (c &key (restart 'skip-feed))
 	     (format t "~&Feed type unsupported: ~a for feed ~a~%"
 		     (alimenta:feed-type c)
@@ -118,15 +117,15 @@
 		      (progn (unless (eq restart 'continue)
 			       (format t "~&Skipping a feed... ~s~%"
 				       (if wc-p
-					   (alimenta.feed-archive.encoders::the-feed c)
+					   (alimenta.feed-archive.encoders:the-feed c)
 					   "Unknown")))
 			     (funcall restart))))))))
 
-    (handler-bind ((alimenta.feed-archive.encoders::feed-error
-		    (lambda (c) (fix-pathname-or-skip c :wrapped-condition (alimenta.feed-archive.encoders::the-condition c))))
+    (handler-bind ((alimenta.feed-archive.encoders:feed-error
+		    (lambda (c)
+		      (fix-pathname-or-skip c :wrapped-condition (alimenta.feed-archive.encoders:the-condition c))))
 		   (alimenta:feed-type-unsupported #'feed-type-unsupported)
 		   (error (lambda (c) (fix-pathname-or-skip c :restart 'continue))))
       (multiple-value-bind (*feeds* *feed-base*) (funcall feed-list-initializer)
-	(alimenta.pull-feed::with-user-agent ("Feed Archiver v0.1b")
+	(alimenta.pull-feed:with-user-agent ("Feed Archiver v0.1b")
 	  (archive-feeds))))))
-
