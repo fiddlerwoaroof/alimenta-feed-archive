@@ -81,22 +81,59 @@
     (with-open-file (index (merge-pathnames "index.json" pull-directory) :direction :output)
       (feed-index index pull-time paths))))
 
-(defun feed-index (index pull-time paths)
-  (flet ((encode-feed-reference (url feed-data)
-	   (yason:with-object ()
-	     (yason:encode-object-element "url" url)
-	     (when feed-data
-	       (destructuring-bind (title path) feed-data
-		 (yason:encode-object-element "title" title)
-		 (yason:encode-object-element "path" (princ-to-string
-						      (uiop:enough-pathname path *feed-base*))))))))
-    (yason:with-output (index :indent t)
-      (yason:with-object ()
-	(yason:encode-object-element "pull-time" (local-time:format-timestring nil pull-time))
-	(yason:encode-object-element "feed-urls" *feeds*)
-	(yason:with-object-element ("feeds")
-	  (yason:with-array ()
-	    (mapcar #'encode-feed-reference *feeds* paths)))))))
+(defclass feed-reference ()
+  ((%url :initarg :url :reader url)
+   (%title :initarg :title :reader title :initform nil)
+   (%path :initarg :path :reader path :initform nil)))
+
+(defun make-feed-reference (url &rest feed-data)
+  (apply #'make-instance 'feed-reference
+	 :url url
+	 feed-data))
+
+(defmethod yason:encode-slots progn ((object feed-reference))
+  (let ((title (title object))
+	(path (path object)))
+    (yason:encode-object-element "url" (url object))
+    (when title
+      (yason:encode-object-element "title" title))
+    (when path
+      (yason:encode-object-element "path" path))))
+
+(defun interleave (list1 list2)
+  (mapcan #'list list1 list2))
+
+(defclass feed-index ()
+  ((%pull-time :initarg :pull-time :reader pull-time)
+   ;; Why this slot? Won't the references duplicate this?
+   (%feed-urls :initarg :feed-urls :reader feed-urls)
+   (%feed-references :initarg :references :reader references)))
+
+(defun make-feed-index (pull-time feeds paths)
+  (make-instance 'feed-index
+		 :pull-time pull-time
+		 :feed-urls feeds
+		 :references (mapcar (destructuring-lambda (url (title path))
+				       (make-feed-reference url :title title :path path))
+				     feeds
+				     paths)))
+
+(defmethod yason:encode-slots progn ((object feed-index))
+  (with-accessors ((pull-time pull-time) (feeds feed-urls) (references references)) object
+    (yason:encode-object-elements
+     "pull-time" (local-time:format-timestring nil pull-time)
+     "feed-urls" feeds)
+    (yason:with-object-element ("feeds")
+      (yason:with-array ()
+	(mapcar 'yason:encode-object references)))))
+
+(defun feed-index (index-stream pull-time paths)
+  (yason:with-output (index-stream :indent t)
+    (yason:encode-object
+     (make-feed-index pull-time *feeds*
+		      (mapcar (destructuring-lambda ((title path))
+				(list title (uiop:enough-pathname path *feed-base*)))
+			      paths)))))
 
 
 ;; This is an ungodly mess, we need to avoid funneling everything through fix-pathname-or-skip
@@ -107,25 +144,24 @@
 		     (alimenta:feed-link c))
 	     (funcall restart))
 	   (fix-pathname-or-skip (c &key (restart 'skip-feed) (wrapped-condition nil wc-p))
-	     (let ((wrapped-condition (or wrapped-condition c)))
-	       (typecase wrapped-condition
-		 (alimenta:feed-type-unsupported (feed-type-unsupported))
-		 (otherwise
-		  (if (find-restart 'fix-pathname)
-		      (progn (fix-pathname)
-			     (format t "~&Fixing pathname...~%"))
-		      (progn (unless (eq restart 'continue)
-			       (format t "~&Skipping a feed... ~s~%"
-				       (if wc-p
-					   (alimenta.feed-archive.encoders:the-feed c)
-					   "Unknown")))
-			     (funcall restart))))))))
+	     (typecase (or wrapped-condition c)
+	       (alimenta:feed-type-unsupported (feed-type-unsupported))
+	       (otherwise
+		(if (find-restart 'fix-pathname)
+		    (fix-pathname)
+		    (progn (unless (eq restart 'continue)
+			     (format t "~&Skipping a feed... ~s~%"
+				     (if wc-p
+					 (alimenta.feed-archive.encoders:the-feed c)
+					 "Unknown")))
+			   (funcall restart)))))))
 
     (handler-bind ((alimenta.feed-archive.encoders:feed-error
 		    (lambda (c)
 		      (fix-pathname-or-skip c :wrapped-condition (alimenta.feed-archive.encoders:the-condition c))))
 		   (alimenta:feed-type-unsupported #'feed-type-unsupported)
-		   (error (lambda (c) (fix-pathname-or-skip c :restart 'continue))))
+		   (error (lambda (c)
+			    (fix-pathname-or-skip c :restart 'continue))))
       (multiple-value-bind (*feeds* *feed-base*) (funcall feed-list-initializer)
 	(alimenta.pull-feed:with-user-agent ("Feed Archiver v0.1b")
 	  (archive-feeds))))))
