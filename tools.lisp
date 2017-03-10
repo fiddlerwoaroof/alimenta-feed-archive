@@ -2,7 +2,7 @@
   (:use :cl :alexandria :serapeum :fw.lu)
   (:shadow :->)
   (:export :fix-pathname :sha256-string :get-id :older-than-a-week :-> :get-feed-store-name
-	   :store :get-item-store-name :restart-once))
+	   :store :get-item-store-name :restart-once :coerce-feed-link :with-retry))
 
 (in-package :alimenta.feed-archive.tools)
 
@@ -71,3 +71,14 @@ next time, it re-raises the exception."
 		(setf ,restarted t)
 		(go ,start))))))))
 
+
+(defun coerce-feed-link (link feed)
+  (prog1 feed
+    (setf (alimenta:feed-link feed) link)))
+
+(defmacro with-retry ((&optional (message "retry the operation")) &body body)
+  `(loop
+      (restart-case (return (progn ,@body))
+	(retry ()
+	  :report (lambda (s)
+		    (format s "~@<~a~@:>" ,message))))))

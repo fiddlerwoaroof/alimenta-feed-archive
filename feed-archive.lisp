@@ -5,11 +5,54 @@
 
 (in-package :alimenta.feed-archive)
 
+
 (defvar *feeds*)
 (defvar *feed-base*)
 
 (defparameter +dirname-format+
   '((:year 4) #\- (:month 2) #\- (:day 2) #\/ (:hour 2) #\- (:min 2) #\/))
+
+(defclass feed-index ()
+  ((%pull-time :initarg :pull-time :reader pull-time)
+   ;; Why this slot? Won't the references duplicate this?
+   (%feed-urls :initarg :feed-urls :reader feed-urls)
+   (%feed-references :initarg :references :reader references)))
+
+(defclass feed-reference ()
+  ((%url :initarg :url :reader url)
+   (%title :initarg :title :reader title :initform nil)
+   (%path :initarg :path :reader path :initform nil)))
+
+(defun make-feed-index (pull-time feeds paths)
+  (make-instance 'feed-index
+		 :pull-time pull-time
+		 :feed-urls feeds
+		 :references (mapcar (destructuring-lambda (url (title path))
+				       (make-feed-reference url :title title :path path))
+				     feeds
+				     paths)))
+
+(defun make-feed-reference (url &rest feed-data)
+  (apply #'make-instance 'feed-reference
+	 :url url
+	 feed-data))
+
+(defmethod yason:encode-slots progn ((object feed-reference))
+  (let ((title (title object))
+	(path (path object)))
+    (yason:encode-object-element "url" (url object))
+    (when title
+      (yason:encode-object-element "title" title))
+    (when path
+      (yason:encode-object-element "path" path))))
+
+(defmethod yason:encode-slots progn ((object feed-index))
+  (with-accessors ((pull-time pull-time) (feeds feed-urls) (references references)) object
+    (yason:encode-object-elements "pull-time" (local-time:format-timestring nil pull-time)
+				  "feed-urls" feeds)
+    (yason:with-object-element ("feeds")
+      (yason:with-array ()
+	(mapcar 'yason:encode-object references)))))
 
 (defun get-store-directory-name (timestamp)
   (flet ((make-dirname (timestamp)
@@ -55,77 +98,29 @@
 		 (continue)))))
     (handler-bind ((warning #'muffle-warning)
 		   (error #'pop-50-tokens))
-      (format t "~&Trying to pull: ~a... " feed-url)
       (prog1 (alimenta.pull-feed:pull-feed feed-url)
 	;; Why am I decf-ing here?
-	(format t "... Success~%")
 	(decf pop-times)))))
+
+(defun log-pull (stream feed-url)
+  (format stream "~&Trying to pull: ~a... " feed-url)
+  (handler-bind ((error (lambda (c) (format stream "... Error ~a~%" c))))
+      (prog1 (safe-pull-feed feed-url)
+		  (format stream "... Success~%"))))
 
 (defun skip-feed ()
   (when-let ((restart (find-restart 'skip-feed)))
     (invoke-restart restart)))
 
+
 (defun pull-and-store-feeds (feeds pull-directory)
-  (loop for feed-url in feeds
-     collect
-       (with-simple-restart (skip-feed "Skip ~a" feed-url)
-	 (let ((feed (safe-pull-feed feed-url)))
-	   (setf (alimenta:feed-link feed)
-		 feed-url)
-	   (store feed pull-directory)))))
-
-(defun archive-feeds ()
-  (let* ((pull-time (local-time:now))
-	 (pull-directory (get-store-directory-name pull-time)) 
-	 (paths (pull-and-store-feeds *feeds* pull-directory)))
-    (with-open-file (index (merge-pathnames "index.json" pull-directory) :direction :output)
-      (feed-index index pull-time paths))))
-
-(defclass feed-reference ()
-  ((%url :initarg :url :reader url)
-   (%title :initarg :title :reader title :initform nil)
-   (%path :initarg :path :reader path :initform nil)))
-
-(defun make-feed-reference (url &rest feed-data)
-  (apply #'make-instance 'feed-reference
-	 :url url
-	 feed-data))
-
-(defmethod yason:encode-slots progn ((object feed-reference))
-  (let ((title (title object))
-	(path (path object)))
-    (yason:encode-object-element "url" (url object))
-    (when title
-      (yason:encode-object-element "title" title))
-    (when path
-      (yason:encode-object-element "path" path))))
-
-(defun interleave (list1 list2)
-  (mapcan #'list list1 list2))
-
-(defclass feed-index ()
-  ((%pull-time :initarg :pull-time :reader pull-time)
-   ;; Why this slot? Won't the references duplicate this?
-   (%feed-urls :initarg :feed-urls :reader feed-urls)
-   (%feed-references :initarg :references :reader references)))
-
-(defun make-feed-index (pull-time feeds paths)
-  (make-instance 'feed-index
-		 :pull-time pull-time
-		 :feed-urls feeds
-		 :references (mapcar (destructuring-lambda (url (title path))
-				       (make-feed-reference url :title title :path path))
-				     feeds
-				     paths)))
-
-(defmethod yason:encode-slots progn ((object feed-index))
-  (with-accessors ((pull-time pull-time) (feeds feed-urls) (references references)) object
-    (yason:encode-object-elements
-     "pull-time" (local-time:format-timestring nil pull-time)
-     "feed-urls" feeds)
-    (yason:with-object-element ("feeds")
-      (yason:with-array ()
-	(mapcar 'yason:encode-object references)))))
+  (mapcar (lambda (feed-url)
+	    (with-simple-restart (skip-feed "Skip ~a" feed-url)
+	      (let ((feed (with-retry ("Pull feed again.")
+			    (log-pull t feed-url))))
+		(store (coerce-feed-link feed-url feed)
+		       pull-directory))))
+	  feeds))
 
 (defun feed-index (index-stream pull-time paths)
   (yason:with-output (index-stream :indent t)
@@ -135,6 +130,13 @@
 				(list title (uiop:enough-pathname path *feed-base*)))
 			      paths)))))
 
+(defun archive-feeds ()
+  (let* ((pull-time (local-time:now))
+	 (pull-directory (get-store-directory-name pull-time)) 
+	 (paths (pull-and-store-feeds *feeds* pull-directory))
+	 (index-path (merge-pathnames "index.json" pull-directory)))
+    (with-open-file (index index-path :direction :output)
+      (feed-index index pull-time paths))))
 
 ;; This is an ungodly mess, we need to avoid funneling everything through fix-pathname-or-skip
 (defun command-line-main (&optional (feed-list-initializer #'init-feeds))
@@ -145,7 +147,7 @@
 	     (funcall restart))
 	   (fix-pathname-or-skip (c &key (restart 'skip-feed) (wrapped-condition nil wc-p))
 	     (typecase (or wrapped-condition c)
-	       (alimenta:feed-type-unsupported (feed-type-unsupported))
+	       (alimenta:feed-type-unsupported (feed-type-unsupported c))
 	       (otherwise
 		(if (find-restart 'fix-pathname)
 		    (fix-pathname)
