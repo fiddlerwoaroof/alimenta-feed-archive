@@ -113,13 +113,22 @@
     (invoke-restart restart)))
 
 
+(defun save-feed (feed output-file &key (if-exists :supersede))
+  (with-output-to-file (s output-file :if-exists if-exists)
+    (plump:serialize (alimenta:doc feed) s)))
+
 (defun pull-and-store-feeds (feeds pull-directory)
   (mapcar (lambda (feed-url)
 	    (with-simple-restart (skip-feed "Skip ~a" feed-url)
-	      (let ((feed (with-retry ("Pull feed again.")
-			    (log-pull t feed-url))))
-		(store (coerce-feed-link feed-url feed)
-		       pull-directory))))
+	      (let* ((feed (with-retry ("Pull feed again.")
+			     (log-pull t feed-url)))
+		     (result (store (coerce-feed-link feed-url feed)
+				    pull-directory)))
+		(prog1 result
+		  (format t "Serializing XML...")
+		  (save-feed feed
+			     (merge-pathnames "feed.xml"
+					      (cadr result)))))))
 	  feeds))
 
 (defun feed-index (index-stream pull-time paths)

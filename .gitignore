@@ -3,3 +3,5 @@
 [#]*#
 feed-archiver
 *.fasl
+vendor
+node_modules

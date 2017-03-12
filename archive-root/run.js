@@ -6,6 +6,7 @@ root = new Vue({
 	feeds: {
 	    feeds: []
 	},
+	collapsed: false,
 
 	current_feed: {
 	    metadata: {
@@ -34,13 +35,20 @@ root = new Vue({
 	item_content() {
 	    let result = null;
 	    if (this.current_item.content !== null) {
-		result = DOMPurify.sanitize(this.current_item.content);
+		result = DOMPurify.sanitize(this.current_item.content, {
+		    FORBID_TAG: ['style'],
+		    FORBID_ATTR: ['style'],
+		});
 	    }
 	    return result;
 	},
     },
 
     methods: {
+	toggleCollapse() {
+	    this.collapsed = !this.collapsed;
+	},
+	
 	sanitize(html) {
 	    return DOMPurify.sanitize(html, {
 		FORBID_TAG: ['style'],
@@ -71,9 +79,34 @@ root = new Vue({
 		      Object.assign(root.current_feed, result));
 	},
 
+	like(item, feed) {
+	    fetch('<<< LIKE WEBHOOK >>>', {
+		method: 'POST',
+		body: JSON.stringify({
+		    'event': 'like-item',
+		    'item': item.link,
+		    'title': item.title,
+		    'author': item.author,
+		    'feed-title': feed.metadata.title,
+		    'feed-link': feed.metadata.link,
+		}),
+	    });
+	},
+
 	get_item(path) {
 	    window.fetch(this.current_feed.base_path + path).then((resp) => resp.json())
 		.then((data) => {
+		    fetch('<<< READ WEBHOOK >>>', {
+			method: 'POST',
+			body: JSON.stringify({
+			    'event': 'read-item',
+			    'item': data.link,
+			    'title': data.title,
+			    'author': data.author,
+			    'feed-title': this.current_feed.metadata.title,
+			    'feed-link': this.current_feed.metadata.link,
+			}),
+		    });
 		    window.history.pushState({
 			'current_feed': root.current_feed,
 			'current_item': data

@@ -8,7 +8,7 @@
   </head>
   <body>
     <div id="container" v-cloak>
-      <div class="left">
+      <div :class="{left: true, collapsed: collapsed}">
 	<div class="feeds">
 	  <span class="pull-time">{{pull_time}}</span>
 	  <!--<div v-for="url in feed_urls">{{url}}</div>-->
@@ -22,10 +22,10 @@
 	  </div>
 	</div>
 
-	<div v-if="current_feed.title !== null && current_feed.items.length > 0" class="current_feed">
-	  <h2>{{current_feed.title}}</h2>
-	  <h3>{{current_feed.link}}</h3>
-	  <div>{{current_feed.description}}</div>
+	<div v-if="current_feed.metadata.title !== null && current_feed.items.length > 0" class="current_feed">
+	  <h2>{{current_feed.metadata.title}}</h2>
+	  <h3>{{current_feed.metadata.link}}</h3>
+	  <div>{{current_feed.metadata.description}}</div>
 	  <ul>
 	    <li v-for="item in current_feed.items | orderBy 'path' -1">
 	      <a v-on:click="get_item(item.path)">
@@ -36,9 +36,11 @@
 	</div>
       </div>
       <div class="right">
-	<div v-if="current_item.title !== null">
+	<button @click="toggleCollapse" class="collapse-toggle">(Un)Collapse</button>
+	<div v-if="current_item.title !== null" class="article-container">
 	  <h2>
 	    <a href="{{current_item.link}}">{{current_item.title}}</a>
+	    <button @click="like(current_item, current_feed)">&lt3</button>
 	  </h2>
 	  <h3>{{current_item.author}}</h3>
 	  <div>{{{  item_content }}}</div>
