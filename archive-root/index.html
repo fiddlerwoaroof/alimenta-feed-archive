@@ -1,60 +1,91 @@
 <!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8">
-    <title></title>
-    <base href="<XXX: YOUR BASE URL HERE>" />
-    <link rel="stylesheet" href="style.css" />
-  </head>
-  <body>
-    <div id="container" v-cloak>
-      <div :class="{left: true, collapsed: collapsed}">
-	<div class="feeds">
-	  <span class="pull-time">{{pull_time}}</span>
-	  <!--<div v-for="url in feed_urls">{{url}}</div>-->
-	  <div v-for="feed in feeds">
-	    <a class="feed-link" v-on:click="get_feed(feed.path)" v-if="has_items(feed)">
-	      <div class="title">{{feed.title}}</div>
-	      <div class="url">
-		&lt;{{feed.url}}&gt;
-	      </div>
-	    </a>
-	  </div>
+    <head>
+	<meta charset="UTF-8">
+	<title></title>
+	<base href="//<URL>/feed_archive/" />
+	<link rel="stylesheet" href="style.css" />
+	<link rel="stylesheet" href="prism.css" />
+    </head>
+    <body>
+	<div id="container" v-cloak>
+	    <header :class="{'v-collapse': collapsed}">
+		<div :class="{'general-info':true, collapsed: collapsed}">
+		    <span class="pull-time">{{pull_time}}</span>
+		</div>
+		<div class="feed-info">
+		    <h2>{{current_feed.metadata.title}}</h2>
+		    <h3>{{current_feed.metadata.link}}</h3>
+		    <div class="description">{{current_feed.metadata.description}}</div>
+		    <button @click="toggleCollapse" class="collapse-toggle">(Un)Collapse</button>
+		</div>
+	    </header>
+	    <div :class="{left: true, collapsed: collapsed}">
+		<div class="feeds">
+		    <!--<div v-for="url in feed_urls">{{url}}</div>-->
+		    <div>
+			<a :class="{'feed-link': true, 'current': show_likes}"
+			   @click="list_likes()"
+			   >
+			    <div :class="title">Likes</div>
+			</a>
+		    </div>
+
+		    <div v-for="feed in feeds">
+			<a :class="{'feed-link': true,
+				    'current': (!show_likes) &&
+					current_feed.base_path === feed.path}"
+			   @click="get_feed(feed.path)" v-if="has_items(feed)">
+			    <div class="title">{{feed.title}}</div>
+			    <div class="url">
+				&lt;{{feed.url}}&gt;
+			    </div>
+			</a>
+		    </div>
+		</div>
+
+		<div v-if="feed_visible" class="current_feed">
+		    <ul>
+			<li v-for="item in current_feed.items | orderBy 'path' -1">
+			    <a v-on:click="get_item(item.path)">
+				<span class="feed_url">{{item.title}}</span>
+			    </a>
+			</li>
+		    </ul>
+		</div>
+
+		<div v-if="show_likes" class="current_feed">
+		    <ul>
+			<li v-for="item in likes">
+			    <a href="{{item.item}}">
+				<span class="feed_url">{{item.title}}</span>
+			    </a>
+			</li>
+		    </ul>
+		</div>
+	    </div>
+
+	    <div :class="{'right':true, 'v-expand': collapsed}" >
+		<h2 v-if="current_item.title !== null" class="article-title">
+		    <a href="{{current_item.link}}">{{current_item.title}}</a>
+		    <button @click="like(current_item, current_feed)">&lt3</button>
+		</h2>
+		<div v-if="current_item.title !== null" class="article-container">
+		    <h3>{{current_item.author}}</h3>
+		    <div>{{{  item_content }}}</div>
+		</div>
+	    </div>
 	</div>
 
-	<div v-if="current_feed.metadata.title !== null && current_feed.items.length > 0" class="current_feed">
-	  <h2>{{current_feed.metadata.title}}</h2>
-	  <h3>{{current_feed.metadata.link}}</h3>
-	  <div>{{current_feed.metadata.description}}</div>
-	  <ul>
-	    <li v-for="item in current_feed.items | orderBy 'path' -1">
-	      <a v-on:click="get_item(item.path)">
-		<span class="feed_url">{{item.title}}</span>
-	      </a>
-	    </li>
-	  </ul>
-	</div>
-      </div>
-      <div class="right">
-	<button @click="toggleCollapse" class="collapse-toggle">(Un)Collapse</button>
-	<div v-if="current_item.title !== null" class="article-container">
-	  <h2>
-	    <a href="{{current_item.link}}">{{current_item.title}}</a>
-	    <button @click="like(current_item, current_feed)">&lt3</button>
-	  </h2>
-	  <h3>{{current_item.author}}</h3>
-	  <div>{{{  item_content }}}</div>
-	</div>
-      </div>
-    </div>
-
-    <script>
-      baseUrl = 'current'
-    </script>
-    <script src="vue.js"></script>
-    <script src="purify.js"></script>
-    <script src="es6-promise.min.js"></script>
-    <script src="fetch.js"></script>
-    <script src="run.js"></script>
-  </body>
+	<script>
+	 baseUrl = 'current'
+	</script>
+	<script src="vue.js"></script>
+	<script src="purify.js"></script>
+	<script src="es6-promise.min.js"></script>
+	<script src="fetch.js"></script>
+	<script src="prism.js"></script>
+	<script src="oboe-browser.js"></script>
+	<script src="run.js"></script>
+    </body>
 </html>
