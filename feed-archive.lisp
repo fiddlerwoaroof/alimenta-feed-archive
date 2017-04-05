@@ -15,7 +15,6 @@
 (defclass feed-index ()
   ((%pull-time :initarg :pull-time :reader pull-time)
    ;; Why this slot? Won't the references duplicate this?
-   (%feed-urls :initarg :feed-urls :reader feed-urls)
    (%feed-references :initarg :references :reader references)))
 
 (defclass feed-reference ()
@@ -23,19 +22,15 @@
    (%title :initarg :title :reader title :initform nil)
    (%path :initarg :path :reader path :initform nil)))
 
-(defun make-feed-index (pull-time feeds paths)
+(defun make-feed-index (pull-time references)
   (make-instance 'feed-index
 		 :pull-time pull-time
-		 :feed-urls feeds
-		 :references (mapcar (destructuring-lambda (url (title path))
-				       (make-feed-reference url :title title :path path))
-				     feeds
-				     paths)))
+		 :references (copy-seq references)))
 
-(defun make-feed-reference (url &rest feed-data)
+(defun make-feed-reference (url &rest feed-data &key title path)
+  (declare (ignore title path))
   (apply #'make-instance 'feed-reference
-	 :url url
-	 feed-data))
+	 :url url feed-data))
 
 (defmethod yason:encode-slots progn ((object feed-reference))
   (let ((title (title object))
@@ -47,9 +42,8 @@
       (yason:encode-object-element "path" path))))
 
 (defmethod yason:encode-slots progn ((object feed-index))
-  (with-accessors ((pull-time pull-time) (feeds feed-urls) (references references)) object
-    (yason:encode-object-elements "pull-time" (local-time:format-timestring nil pull-time)
-				  "feed-urls" feeds)
+  (with-accessors ((pull-time pull-time) (references references)) object
+    (yason:encode-object-element "pull-time" (local-time:format-timestring nil pull-time))
     (yason:with-object-element ("feeds")
       (yason:with-array ()
 	(mapcar 'yason:encode-object references)))))
@@ -102,50 +96,59 @@
 	;; Why am I decf-ing here?
 	(decf pop-times)))))
 
-(defun log-pull (stream feed-url)
-  (format stream "~&Trying to pull: ~a... " feed-url)
-  (handler-bind ((error (lambda (c) (format stream "... Error ~a~%" c))))
-      (prog1 (safe-pull-feed feed-url)
-		  (format stream "... Success~%"))))
+(defmacro with-progress-message ((stream before after &optional (error-msg " ERROR~%~4t~a~%")) &body body)
+  (once-only (before after stream)
+    `(handler-bind ((error (op (format ,stream ,error-msg _))))
+       (format ,stream "~&~a . . ." ,before)
+       (multiple-value-prog1 (progn
+			       ,@body)
+	 (format ,stream " ~a~%" ,after)))))
 
 (defun skip-feed ()
   (when-let ((restart (find-restart 'skip-feed)))
     (invoke-restart restart)))
-
 
 (defun save-feed (feed output-file &key (if-exists :supersede))
   (with-output-to-file (s output-file :if-exists if-exists)
     (plump:serialize (alimenta:doc feed) s)))
 
 (defun pull-and-store-feeds (feeds pull-directory)
-  (mapcar (lambda (feed-url)
-	    (with-simple-restart (skip-feed "Skip ~a" feed-url)
-	      (let* ((feed (with-retry ("Pull feed again.")
-			     (log-pull t feed-url)))
-		     (result (store (coerce-feed-link feed-url feed)
-				    pull-directory)))
-		(prog1 result
-		  (format t "Serializing XML...")
-		  (save-feed feed
-			     (merge-pathnames "feed.xml"
-					      (cadr result)))))))
+  (mapcar (op (pull-and-store-feed _ pull-directory))
 	  feeds))
 
-(defun feed-index (index-stream pull-time paths)
+(defun pull-and-store-feed (feed-url pull-directory)
+  (flet ((log-pull (stream)
+	   (let ((before-message (format nil "Trying to pull: ~a" feed-url)))
+	     (with-progress-message (stream before-message "Success")
+	       (prog1 (safe-pull-feed feed-url)))))
+	 (log-serialization (stream feed path)
+	   (with-progress-message (stream "Serializing XML" (format nil "done with ~a" feed-url))
+	     (save-feed feed (merge-pathnames "feed.xml" path)))))
+
+    (with-simple-restart (skip-feed "Stop processing for ~a" feed-url)
+      (let* ((feed (with-retry ("Pull feed again.")
+		     (alimenta:filter-feed (coerce-feed-link feed-url
+							     (log-pull t))
+					   (complement #'older-than-a-month)
+					   :key 'alimenta:date))))
+	(multiple-value-bind (result url) (store feed pull-directory)
+	  (destructuring-bind (title path) result
+	    (log-serialization t feed path)
+	    (make-feed-reference url :title title
+				 :path (uiop:enough-pathname path *feed-base*))))))))
+
+(defun feed-index (index-stream pull-time references)
   (yason:with-output (index-stream :indent t)
     (yason:encode-object
-     (make-feed-index pull-time *feeds*
-		      (mapcar (destructuring-lambda ((title path))
-				(list title (uiop:enough-pathname path *feed-base*)))
-			      paths)))))
+     (make-feed-index pull-time (remove-if 'null references)))))
 
 (defun archive-feeds ()
   (let* ((pull-time (local-time:now))
 	 (pull-directory (get-store-directory-name pull-time)) 
-	 (paths (pull-and-store-feeds *feeds* pull-directory))
+	 (references (pull-and-store-feeds *feeds* pull-directory))
 	 (index-path (merge-pathnames "index.json" pull-directory)))
     (with-open-file (index index-path :direction :output)
-      (feed-index index pull-time paths))))
+      (feed-index index pull-time references))))
 
 ;; This is an ungodly mess, we need to avoid funneling everything through fix-pathname-or-skip
 (defun command-line-main (&optional (feed-list-initializer #'init-feeds))
@@ -167,12 +170,19 @@
 					 "Unknown")))
 			   (funcall restart)))))))
 
-    (handler-bind ((alimenta.feed-archive.encoders:feed-error
-		    (lambda (c)
-		      (fix-pathname-or-skip c :wrapped-condition (alimenta.feed-archive.encoders:the-condition c))))
-		   (alimenta:feed-type-unsupported #'feed-type-unsupported)
-		   (error (lambda (c)
-			    (fix-pathname-or-skip c :restart 'continue))))
-      (multiple-value-bind (*feeds* *feed-base*) (funcall feed-list-initializer)
-	(alimenta.pull-feed:with-user-agent ("Feed Archiver v0.1b")
-	  (archive-feeds))))))
+    (let ((error-count 0))
+      (handler-bind ((alimenta.feed-archive.encoders:feed-error
+		      (op (fix-pathname-or-skip _1 :wrapped-condition (alimenta.feed-archive.encoders:the-condition _1))))
+		     (alimenta:feed-type-unsupported #'feed-type-unsupported)
+		     ((or usocket:timeout-error
+			  usocket:ns-error) (op (alimenta.pull-feed:skip-feed _)))
+		     (error
+		      (op
+			(format t "~&Error signaled, ~a (count ~d)" _1 error-count)
+			(incf error-count)
+			(unless (< error-count 15)
+			  (format t " continuing~%")
+			  (fix-pathname-or-skip _1 :restart 'continue)))))
+	(multiple-value-bind (*feeds* *feed-base*) (funcall feed-list-initializer)
+	  (alimenta.pull-feed:with-user-agent ("Feed Archiver v0.1b")
+	    (archive-feeds)))))))

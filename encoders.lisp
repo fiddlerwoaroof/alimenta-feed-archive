@@ -1,7 +1,8 @@
 (defpackage :alimenta.feed-archive.encoders
   (:use :cl :alexandria :serapeum :fw.lu :alimenta.feed-archive.tools)
   (:shadowing-import-from :alimenta.feed-archive.tools :->)
-  (:export :skip-item :the-condition :the-feed :feed-error))
+  (:export :skip-item :the-condition :the-feed :feed-error
+	   :unwrap-feed-errors))
 
 (in-package :alimenta.feed-archive.encoders)
 
@@ -21,6 +22,10 @@
   (error 'feed-error
 	 :feed feed
 	 :condition condition))
+
+(defmacro unwrap-feed-errors (() &body body)
+  `(handler-bind ((feed-error (op (error (the-condition _)))))
+     ,@body))
 
 (defun %encode-feed-as-json (feed item-storage-info root-dir &optional stream)
   (with-accessors ((description alimenta:description)
@@ -44,23 +49,11 @@
 	      )))))))
 
 (defmethod store ((items sequence) (directory pathname))
-  (map 'list (lambda (item) (store item directory))
-       (stable-sort
-	(sort (remove-if #'older-than-a-week items :key #'alimenta:date)
-	      #'string-lessp
-	      :key #'alimenta:title)
-	#'local-time:timestamp>
-	:key #'alimenta:date)))
-
-(defun sort-and-filter-items (feed)
-  (setf (alimenta:items feed)
-	(stable-sort
-	 (sort (remove-if #'older-than-a-week (alimenta:items feed)
-			  :key #'alimenta:date)
-	       #'string-lessp
-	       :key #'alimenta:title)
-	 #'local-time:timestamp>
-	 :key #'alimenta:date)))
+  (map 'list (op (store _ directory))
+       (stable-sort (sort items #'string-lessp
+			  :key #'alimenta:title)
+		    #'local-time:timestamp>
+		    :key #'alimenta:date)))
 
 (defmethod store ((feed alimenta:feed) (directory pathname))
   (flet ((get-feed-store-name (feed directory)
@@ -75,14 +68,15 @@
 		     (title alimenta:title)) feed
       ; We wrap all errors with our own condition
       (handler-bind ((error (lambda (c) (error 'feed-error :feed feed :condition c))))
-	(prog1-let ((feed-title title)
-		    (feed-store (get-feed-store-name feed directory)))
-	  (ensure-directories-exist feed-store)
-	  (with-open-file (index (merge-pathnames "index.json" feed-store) :direction :output)
-	    (%encode-feed-as-json feed
-				  (store items feed-store)
-				  feed-store
-				  index)))))))
+	(values (prog1-let ((feed-title title)
+			    (feed-store (get-feed-store-name feed directory)))
+		  (ensure-directories-exist feed-store)
+		  (with-open-file (index (merge-pathnames "index.json" feed-store) :direction :output)
+		    (%encode-feed-as-json feed
+					  (store items feed-store)
+					  feed-store
+					  index)))
+		feed-link)))))
 
 (defmethod store ((feed alimenta:feed) (stream stream))
   (handler-bind ((error (lambda (c)

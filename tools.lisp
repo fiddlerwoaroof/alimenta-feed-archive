@@ -2,7 +2,8 @@
   (:use :cl :alexandria :serapeum :fw.lu)
   (:shadow :->)
   (:export :fix-pathname :sha256-string :get-id :older-than-a-week :-> :get-feed-store-name
-	   :store :get-item-store-name :restart-once :coerce-feed-link :with-retry))
+	   :store :get-item-store-name :restart-once :coerce-feed-link :with-retry
+	   :older-than-a-month))
 
 (in-package :alimenta.feed-archive.tools)
 
@@ -52,6 +53,11 @@
 	       (sha256-string (alimenta:id item))
 	       #+nil ".json"))
 
+(defun older-than-a-month (date)
+  (let ((month-ago (local-time:timestamp- (local-time:now)
+					  31 :day)))
+    (local-time:timestamp< date month-ago)))
+
 (defun older-than-a-week (date)
   (let ((week-ago (local-time:timestamp- (local-time:now)
                                          7 :day)))
@@ -74,7 +80,8 @@ next time, it re-raises the exception."
 
 (defun coerce-feed-link (link feed)
   (prog1 feed
-    (setf (alimenta:feed-link feed) link)))
+    (unless (alimenta:feed-link feed)
+      (setf (alimenta:feed-link feed) link))))
 
 (defmacro with-retry ((&optional (message "retry the operation")) &body body)
   `(loop
