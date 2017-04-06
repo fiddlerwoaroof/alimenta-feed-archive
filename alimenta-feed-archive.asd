@@ -15,5 +15,6 @@
   :components ((:file "tools")
 	       (:file "yason-encoders")
 	       (:file "encoders")
+	       (:file "feed-index-utils")
 	       (:file "feed-archive")))
 
