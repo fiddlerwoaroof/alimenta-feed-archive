@@ -1,10 +1,3 @@
-(defpackage :alimenta.feed-archive.tools
-  (:use :cl :alexandria :serapeum :fw.lu)
-  (:shadow :->)
-  (:export :fix-pathname :sha256-string :get-id :older-than-a-week :-> :get-feed-store-name
-	   :store :get-item-store-name :restart-once :coerce-feed-link :with-retry
-	   :older-than-a-month))
-
 (in-package :alimenta.feed-archive.tools)
 
 (defgeneric store (item directory)

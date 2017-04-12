@@ -1,10 +1,4 @@
-(defpackage :alimenta.feed-archive
-  (:use :cl :alexandria :serapeum :fw.lu :alimenta.feed-archive.tools)
-  (:shadowing-import-from :alimenta.feed-archive.tools :->)
-  (:export #:init-feeds #:archive-feeds #:command-line-main))
-
 (in-package :alimenta.feed-archive)
-
 
 (defvar *feeds*)
 (defvar *feed-base*)
@@ -112,7 +106,8 @@
 	 (references (pull-and-store-feeds *feeds* pull-directory))
 	 (index-path (merge-pathnames "index.json" pull-directory)))
     (with-open-file (index index-path :direction :output)
-      (feed-index index pull-time references))))
+      (feed-index index pull-time references))
+    (format t "~&!! pull-directory ~a~%" (uiop:enough-pathname pull-directory *feed-base*))))
 
 ;; This is an ungodly mess, we need to avoid funneling everything through fix-pathname-or-skip
 (defun command-line-main (&optional (feed-list-initializer #'init-feeds))

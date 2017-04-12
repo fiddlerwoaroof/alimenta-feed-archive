@@ -12,7 +12,8 @@
 	       #:uiop
 	       #:yason)
   :serial t
-  :components ((:file "tools")
+  :components ((:file "package")
+	       (:file "tools")
 	       (:file "yason-encoders")
 	       (:file "encoders")
 	       (:file "feed-index-utils")
