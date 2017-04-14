@@ -271,11 +271,18 @@ div.description {
 
 .code, code, pre {
     white-space: pre;
-    background: black;
-    padding: 1em;
-    border: medium ridge;
-    font-family: monospace;
+    background: hsla(0,0%,0%, 0.5);
+    border: 1px solid #fdf6e3;
+    font-family: 'Source Code Pro', monospace;
     font-size: 10px;
+}
+
+code {
+    padding: 0 0.5em;
+}
+
+pre {
+    padding: 1em;
 }
 
 .code .code, code code, pre pre,
