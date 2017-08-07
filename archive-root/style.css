@@ -285,9 +285,9 @@ pre {
     padding: 1em;
 }
 
-.code .code, code code, pre pre,
 .code pre, code .code, pre code,
-.code code, code pre, pre .code,
+.code .code, code code, pre pre,
+.code code, code pre, pre .code
 {
     background: transparent;
     padding: 0;
