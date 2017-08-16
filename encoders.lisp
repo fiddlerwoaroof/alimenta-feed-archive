@@ -111,7 +111,7 @@
 
 (defmethod store ((item alimenta:item) (stream stream))
   (yason:with-output (stream :indent t)
-    (yason:encode-object item))
+    (yason:encode-slots item))
   (list (alimenta:title item)
         stream))
 
@@ -139,7 +139,6 @@
 (defmethod stream-provider:get-nested-provider ((provider stream-provider:stream-provider) (streamable alimenta:feed))
   (with (items-root (uiop:merge-pathnames* (uiop:pathname-directory-pathname (stream-provider:stream-key provider streamable))
                                            (stream-provider:root provider)))
-    (format t "~&items-root: ~a   @#%@#$^#$&^&%$~%" items-root) (terpri)
     (ensure-gethash items-root
                     (item-providers provider)
                     (make-instance 'stream-provider:file-provider :root items-root))))
@@ -153,6 +152,16 @@
   (stream-provider:with-storage-stream (s item stream-provider)
     (store item s)))
 
+(defmethod store :around ((item alimenta:item) (dest stream-provider:stream-provider))
+  (with-simple-restart (skip-item "Skip item ~s" (car item))
+    (call-next-method)))
+
+(defun map-coalesce (fun &rest seqs)
+  (apply #'mappend
+         (compose #'unsplice
+                  fun)
+         seqs))
+
 (defmethod store ((feed alimenta:feed) (stream-provider stream-provider:stream-provider))
   (stream-provider:with-storage-stream (s feed stream-provider)
     (with-accessors ((description alimenta:description)
@@ -162,15 +171,12 @@
                      (source-type alimenta:source-type)
                      (title alimenta:title)) feed
       (let* ((item-provider (stream-provider:get-nested-provider stream-provider feed))
-             (item-storage-info (map 'list (op (store _ item-provider))
-                                                        items)))
+             (item-storage-info (map-coalesce (op (store _ item-provider))
+                                              items)))
         (yason:with-output (s :indent t)
-          (yason:with-object ()
-            (yason:encode-object-element "metadata" feed)
-            (yason:with-object-element ("items")
-              (yason:with-array ()
-                (dolist (item item-storage-info)
-                  (destructuring-bind (title path) item
-                    (yason:with-object ()
-                      (yason:encode-object-elements "title" title
-                                                    "path" path))))))))))))
+          (with-collection (item "items" item-storage-info "metadata" feed)
+            (destructuring-bind (title path) item
+              (yason:with-object ()
+                (yason:encode-object-elements
+                 "title" title
+                 "path" path)))))))))

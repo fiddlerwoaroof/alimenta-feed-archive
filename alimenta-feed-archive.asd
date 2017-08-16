@@ -13,7 +13,8 @@
                #:ubiquitous
                #:uiop
                #:vector-update-stream
-               #:yason)
+               #:yason
+               #:html-sanitizer)
   :serial t
   :components ((:file "package")
                (:file "tools")

@@ -1,4 +1,4 @@
-all: ccl
+all: sbcl
 
 sbcl:
 	sbcl --no-userinit --disable-debugger --load deploy.lisp

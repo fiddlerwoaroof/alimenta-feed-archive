@@ -1,23 +1,25 @@
+(in-package :alimenta.feed-archive.encoders)
+
 (defmethod yason:encode ((object pathname) &optional stream)
   (yason:encode (princ-to-string (uiop:native-namestring object))
-		       stream)
+                       stream)
   object)
 
 (defmethod yason:encode ((object puri:uri) &optional stream)
   (yason:encode (puri:render-uri object nil)
-		stream)
+                stream)
   object)
 
 (defmethod yason:encode-slots progn ((feed alimenta:feed))
   (with-accessors ((description alimenta:description)
-		   (feed-link alimenta:feed-link)
-		   (items alimenta:items)
-		   (link alimenta:link)
-		   (source-type alimenta:source-type)
-		   (title alimenta:title)) feed
+                   (feed-link alimenta:feed-link)
+                   (items alimenta:items)
+                   (link alimenta:link)
+                   (source-type alimenta:source-type)
+                   (title alimenta:title)) feed
     (yason:encode-object-element "title" title)
     (yason:encode-object-element "fetch-url"
-				 (puri:render-uri feed-link nil))
+                                 (puri:render-uri feed-link nil))
     (yason:encode-object-element "link" link)
     ;;(yason:encode-object-element "source-type" source-type)
     (yason:encode-object-element "description" description))
@@ -30,11 +32,11 @@
 
 (defmethod yason:encode-slots progn ((item alimenta:item))
   (with-accessors ((author alimenta:author)
-		   (content alimenta:content)
-		   (date alimenta:date)
-		   (id alimenta:id)
-		   (link alimenta:link)
-		   (title alimenta:title)) item
+                   (content alimenta:content)
+                   (date alimenta:date)
+                   (id alimenta:id)
+                   (link alimenta:link)
+                   (title alimenta:title)) item
     (let* ((date (local-time:format-timestring nil date)))
       (yason:with-object ()
 	(yason:encode-object-element "title" title)
@@ -49,3 +51,20 @@
     (yason:encode-slots item))
   item)
 
+
+(defun encode-collection-object (other-pairs collection-key collection-value element-encoder)
+  (yason:with-object ()
+    (loop for (key value) on other-pairs by #'cddr
+       do
+         (yason:encode-object-element key value))
+    (yason:with-object-element (collection-key)
+      (yason:with-array ()
+        (dolist (item collection-value)
+          (funcall element-encoder item))))))
+
+(defmacro with-collection ((item-sym key collection &rest other-pairs) &body encoder)
+  (once-only (key collection)
+    `(encode-collection-object (list ,@other-pairs)
+                               ,key ,collection
+                               (lambda (,item-sym)
+                                 ,@encoder))))

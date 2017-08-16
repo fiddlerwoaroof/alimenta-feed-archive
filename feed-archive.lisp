@@ -17,6 +17,7 @@
 
 (defun test-feed-list ()
   (values '("http://feeds.feedburner.com/GamasutraFeatureArticles/"
+            "http://edwardfeser.blogspot.com/feeds/posts/default"
             "https://www.codinghorror.com/blog/index.xml"
             "https://sancrucensis.wordpress.com/feed/")
           #p"/tmp/feed-archive/"))
@@ -50,8 +51,14 @@
                  (continue)))))
     (handler-bind ((warning #'muffle-warning)
                    (error #'pop-50-tokens))
-      (prog1 (alimenta.pull-feed:pull-feed feed-url)
+      (prog1-bind (feed (alimenta.pull-feed:pull-feed feed-url))
         ;; Why am I decf-ing here?
+        (alimenta:transform feed
+                            (fw.lu:glambda (entity)
+                              (:method (entity))
+                              (:method ((entity alimenta:item))
+                                (setf (alimenta:content entity)
+                                      (html-sanitizer:sanitize (alimenta:content entity))))))
         (decf pop-times)))))
 
 (defmacro with-progress-message ((stream before after &optional (error-msg " ERROR~%~4t~a~%")) &body body)
@@ -70,10 +77,6 @@
   (with-output-to-file (s output-file :if-exists if-exists)
     (plump:serialize (alimenta:doc feed) s)))
 
-(defun pull-and-store-feeds (feeds pull-directory)
-  (mapcar (op (pull-and-store-feed _ pull-directory))
-          feeds))
-
 (defun log-pull (feed-puller feed-url stream)
   (let ((before-message (concatenate 'string "Trying to pull: " feed-url)))
     (with-progress-message (stream before-message "Success")
@@ -85,44 +88,57 @@
                         :key 'alimenta:date))
 
 (defun log-serialization (feed-url stream feed path)
+  (declare (ignorable feed-url stream feed path))
   (with-progress-message (stream "Serializing XML" (format nil "done with ~a" feed-url))
     (save-feed feed (merge-pathnames "feed.xml" path))))
 
 (defun feed-relative-pathname (path &optional (feed-base *feed-base*))
   (uiop:enough-pathname path feed-base))
 
-(defun pull-and-store-feed (feed-url pull-directory &optional (feed-puller #'safe-pull-feed))
-  (flet ((log-pull (stream)
-           (declare (inline) (dynamic-extent stream))
-           (log-pull feed-puller feed-url stream))
-         (log-serialization (stream feed path)
-           (declare (inline) (dynamic-extent stream))
-           (log-serialization feed-url stream feed path)))
-
-    (with-simple-restart (skip-feed "Stop processing for ~a" feed-url)
-      (let* ((feed (with-retry ("Pull feed again.")
-                     (normalize-feed feed-url (log-pull t)))))
-        (trivia:multiple-value-match (store feed pull-directory)
-          (((list title path) url)
-           (log-serialization t feed path)
-           (make-feed-reference url :title title :path (feed-relative-pathname path))))))))
-
 (defun feed-index (index-stream pull-time references)
   (yason:with-output (index-stream :indent t)
     (yason:encode-object
      (make-feed-index pull-time (remove-if 'null references)))))
 
+(defun pull-and-store-feed (feed-url stream-provider &optional (feed-puller #'safe-pull-feed))
+  (flet ((log-pull (stream)
+           (declare (inline) (dynamic-extent stream))
+           (log-pull feed-puller feed-url stream))
+         (log-serialization (stream feed path)
+           (declare (inline) (dynamic-extent stream))
+           (log-serialization feed-url stream feed
+                              (merge-pathnames path
+                                               (stream-provider:root stream-provider)))))
+
+    (with-simple-restart (skip-feed "Stop processing for ~a" feed-url)
+      (let* ((feed (with-retry ("Pull feed again.")
+                     (normalize-feed feed-url (log-pull t)))))
+        (trivia:match (store feed stream-provider)
+          ((list title path)
+           (log-serialization t feed path)
+           (make-feed-reference (alimenta:feed-link feed)
+                                :title title
+                                :path (feed-relative-pathname
+                                       (uiop:pathname-directory-pathname
+                                        (merge-pathnames path
+                                                         (stream-provider:root stream-provider)))))))))))
+
 (defun archive-feeds (pull-time pull-directory index-stream)
-  (let ((references (pull-and-store-feeds *feeds* pull-directory)))
-    (feed-index index-stream pull-time references)
-    references))
+  (prog1-bind (references (mapcar (op (pull-and-store-feed _ pull-directory))
+                                  *feeds*))
+    (feed-index index-stream pull-time references)))
 
 (defun archive-feeds-nondeterm ()
   (let* ((pull-time (local-time:now))
 	 (pull-directory (get-store-directory-name pull-time)) 
-	 (index-path (merge-pathnames "index.json" pull-directory)))
+	 (index-path (merge-pathnames "index.json" pull-directory))
+         (feed-stream-provider (make-instance 'alimenta.feed-archive.encoders:feed-stream-provider
+                                              :if-exists :error
+                                              :root pull-directory)))
     (with-open-file (index index-path :direction :output)
-      (archive-feeds pull-time pull-directory index))
+      (archive-feeds pull-time
+                     feed-stream-provider
+                     index))
     (format t "~&!! pull-directory ~a~%" (uiop:enough-pathname pull-directory *feed-base*))))
 
 ;; This is an ungodly mess, we need to avoid funneling everything through fix-pathname-or-skip
