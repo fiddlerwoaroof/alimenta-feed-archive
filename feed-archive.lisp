@@ -18,6 +18,7 @@
 (defun test-feed-list ()
   (values '("http://feeds.feedburner.com/GamasutraFeatureArticles/"
             "http://edwardfeser.blogspot.com/feeds/posts/default"
+            "http://feeds.feedburner.com/undergroundthomist/yCSy"
             "https://www.codinghorror.com/blog/index.xml"
             "https://sancrucensis.wordpress.com/feed/")
           #p"/tmp/feed-archive/"))
@@ -130,8 +131,8 @@
 
 (defun archive-feeds-nondeterm ()
   (let* ((pull-time (local-time:now))
-	 (pull-directory (get-store-directory-name pull-time)) 
-	 (index-path (merge-pathnames "index.json" pull-directory))
+         (pull-directory (get-store-directory-name pull-time)) 
+         (index-path (merge-pathnames "index.json" pull-directory))
          (feed-stream-provider (make-instance 'alimenta.feed-archive.encoders:feed-stream-provider
                                               :if-exists :error
                                               :root pull-directory)))
@@ -144,37 +145,37 @@
 ;; This is an ungodly mess, we need to avoid funneling everything through fix-pathname-or-skip
 (defun command-line-main (&optional (feed-list-initializer #'init-feeds))
   (labels ((feed-type-unsupported (c &key (restart 'skip-feed))
-	     (format t "~&Feed type unsupported: ~a for feed ~a~%"
-		     (alimenta:feed-type c)
-		     (alimenta:feed-link c))
-	     (funcall restart))
-	   (fix-pathname-or-skip (c &key (restart 'skip-feed) (wrapped-condition nil wc-p))
-	     (typecase (or wrapped-condition c)
-	       (alimenta:feed-type-unsupported (feed-type-unsupported c))
-	       (otherwise
-		(if (find-restart 'fix-pathname)
-		    (fix-pathname)
-		    (progn (unless (eq restart 'continue)
-			     (format t "~&Skipping a feed... ~s~%"
-				     (if wc-p
-					 (alimenta.feed-archive.encoders:the-feed c)
-					 "Unknown")))
-			   (funcall restart)))))))
+             (format t "~&Feed type unsupported: ~a for feed ~a~%"
+                     (alimenta:feed-type c)
+                     (alimenta:feed-link c))
+             (funcall restart))
+           (fix-pathname-or-skip (c &key (restart 'skip-feed) (wrapped-condition nil wc-p))
+             (typecase (or wrapped-condition c)
+               (alimenta:feed-type-unsupported (feed-type-unsupported c))
+               (otherwise
+                (if (find-restart 'fix-pathname)
+                    (fix-pathname)
+                    (progn (unless (eq restart 'continue)
+                             (format t "~&Skipping a feed... ~s~%"
+                                     (if wc-p
+                                         (alimenta.feed-archive.encoders:the-feed c)
+                                         "Unknown")))
+                           (funcall restart)))))))
 
     (let ((error-count 0))
       (handler-bind ((alimenta.feed-archive.encoders:feed-error
-		      (op (fix-pathname-or-skip _1 :wrapped-condition (alimenta.feed-archive.encoders:the-condition _1))))
-		     (alimenta:feed-type-unsupported #'feed-type-unsupported)
-		     ((or usocket:timeout-error
-			  usocket:ns-error) (op (alimenta.pull-feed:skip-feed _)))
-		     (error
-		      (op
-			(format t "~&Error signaled, ~a (count ~d)" _1 error-count)
-			(incf error-count)
-			(unless (< error-count 15)
-			  (format t " continuing~%")
-			  (fix-pathname-or-skip _1 :restart 'continue)))))
-	(multiple-value-bind (*feeds* *feed-base*) (funcall feed-list-initializer)
-	  (alimenta.pull-feed:with-user-agent ("Feed Archiver v0.1b")
-	    (archive-feeds-nondeterm)))))))
+                      (op (fix-pathname-or-skip _1 :wrapped-condition (alimenta.feed-archive.encoders:the-condition _1))))
+                     (alimenta:feed-type-unsupported #'feed-type-unsupported)
+                     ((or usocket:timeout-error usocket:ns-error
+                          ) (op (alimenta.pull-feed:skip-feed _)))
+                     (error
+                      (op
+                        (format t "~&Error signaled, ~a (count ~d)" _1 error-count)
+                        (incf error-count)
+                        (unless (< error-count 15)
+                          (format t " continuing~%")
+                          (fix-pathname-or-skip _1 :restart 'continue)))))
+        (multiple-value-bind (*feeds* *feed-base*) (funcall feed-list-initializer)
+          (alimenta.pull-feed:with-user-agent ("Feed Archiver v0.1b")
+            (archive-feeds-nondeterm)))))))
 
