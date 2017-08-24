@@ -99,9 +99,13 @@
 (defun feed-index (index-stream pull-time references)
   (yason:with-output (index-stream :indent t)
     (yason:encode-object
-     (make-feed-index pull-time (remove-if 'null references)))))
+     (make-instance 'feed-index
+                    :pull-time pull-time
+                    :references (remove-if 'null references)))))
+
 
 (defun pull-and-store-feed (feed-url stream-provider &optional (feed-puller #'safe-pull-feed))
+  (declare (optimize (debug 3)))
   (flet ((log-pull (stream)
            (declare (inline) (dynamic-extent stream))
            (log-pull feed-puller feed-url stream))
@@ -110,19 +114,23 @@
            (log-serialization feed-url stream feed
                               (merge-pathnames path
                                                (stream-provider:root stream-provider)))))
-
-    (with-simple-restart (skip-feed "Stop processing for ~a" feed-url)
-      (let* ((feed (with-retry ("Pull feed again.")
-                     (normalize-feed feed-url (log-pull t)))))
-        (trivia:match (store feed stream-provider)
-          ((list title path)
-           (log-serialization t feed path)
-           (make-feed-reference (alimenta:feed-link feed)
-                                :title title
-                                :path (feed-relative-pathname
-                                       (uiop:pathname-directory-pathname
-                                        (merge-pathnames path
-                                                         (stream-provider:root stream-provider)))))))))))
+    (handler-bind ((cl+ssl:ssl-error-verify
+                    (lambda (c)
+                      (declare (ignore c))
+                      (format *error-output* "~&SSL Error while pulling ~a~%"
+                              feed-url))))
+      (with-simple-restart (skip-feed "Stop processing for ~a" feed-url)
+        (let* ((feed (with-retry ("Pull feed again.")
+                       (normalize-feed feed-url (log-pull t)))))
+          (trivia:match (store feed stream-provider)
+            ((list title path)
+             (log-serialization t feed path)
+             (make-feed-reference (alimenta:feed-link feed)
+                                  :title title
+                                  :path (feed-relative-pathname
+                                         (uiop:pathname-directory-pathname
+                                          (merge-pathnames path
+                                                           (stream-provider:root stream-provider))))))))))))
 
 (defun archive-feeds (pull-time pull-directory index-stream)
   (prog1-bind (references (mapcar (op (pull-and-store-feed _ pull-directory))
@@ -166,8 +174,9 @@
       (handler-bind ((alimenta.feed-archive.encoders:feed-error
                       (op (fix-pathname-or-skip _1 :wrapped-condition (alimenta.feed-archive.encoders:the-condition _1))))
                      (alimenta:feed-type-unsupported #'feed-type-unsupported)
-                     ((or usocket:timeout-error usocket:ns-error
-                          ) (op (alimenta.pull-feed:skip-feed _)))
+                     ((or usocket:timeout-error usocket:ns-error cl+ssl:ssl-error-verify)
+                      (op (alimenta.pull-feed:skip-feed _)))
+                     
                      (error
                       (op
                         (format t "~&Error signaled, ~a (count ~d)" _1 error-count)
@@ -179,3 +188,31 @@
           (alimenta.pull-feed:with-user-agent ("Feed Archiver v0.1b")
             (archive-feeds-nondeterm)))))))
 
+
+(defpackage :alimenta.feed-archive/tests
+  (:use :cl :should-test)
+  (:export ))
+(in-package :alimenta.feed-archive/tests)
+
+(eval-when (:compile-toplevel :load-toplevel :execute)
+  (import 'alimenta.feed-archive::feed-index))
+
+(defun hash-table= (ht1 ht2 &key (key-test 'equal) (value-test 'equal))
+  (let ((ht1-keys (alexandria:hash-table-keys ht1))
+        (ht2-keys (alexandria:hash-table-keys ht2)))
+    (and (= (length ht1-keys)
+            (length ht2-keys))
+         (every key-test ht1-keys ht2-keys)
+         (every value-test
+                (alexandria:hash-table-values ht1)
+                (alexandria:hash-table-values ht2)))))
+
+(deftest feed-index ()
+    (should be hash-table=
+            (yason:parse
+             (with-output-to-string (s)
+               (feed-index s (local-time:encode-timestamp 0 0 0 0 1 1 1) '()))
+             :object-as :hash-table :json-arrays-as-vectors nil)
+            (alexandria:alist-hash-table
+             '(("pull-time" . "0001-01-01T00:00:00.000000-08:00")
+               ("feeds" . ())))))

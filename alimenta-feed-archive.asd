@@ -5,6 +5,7 @@
   :depends-on (#:alexandria
                #:alimenta
                #:fwoar.lisputils
+               #:alimenta+patmatch
                #:ironclad
                #:local-time
                #:serapeum
