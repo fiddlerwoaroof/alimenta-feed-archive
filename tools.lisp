@@ -43,8 +43,7 @@
   (concatenate 'string
 	       (local-time:format-timestring nil (alimenta:date item))
 	       "-"
-	       (sha256-string (alimenta:id item))
-	       #+nil ".json"))
+	       (sha256-string (alimenta:id item))))
 
 (defun older-than-a-month (date)
   (let ((month-ago (local-time:timestamp- (local-time:now)

@@ -8,12 +8,14 @@
 
 (defun get-store-directory-name (timestamp)
   (flet ((make-dirname (timestamp)
-           (-> (local-time:format-timestring nil (local-time:timestamp-minimize-part timestamp :sec)
-                                             :format +dirname-format+)
-               (merge-pathnames *feed-base*))))
-    (-> (prog1-let ((result (make-dirname timestamp)))
-          (ensure-directories-exist result))
-        (car))))
+           (merge-pathnames
+            (local-time:format-timestring nil
+                                          (local-time:timestamp-minimize-part timestamp
+                                                                              :sec)
+                                          :format +dirname-format+)
+            *feed-base*)))
+    (values (prog1-let ((result (make-dirname timestamp)))
+              (ensure-directories-exist result)))))
 
 (defun test-feed-list ()
   (values '("http://feeds.feedburner.com/GamasutraFeatureArticles/"
@@ -37,30 +39,39 @@
            (ubiquitous:value :feeds)
            :test #'equalp))
 
+(defmacro lambda* ((&rest args) &body body)
+  (let ((rest-arg (gensym "REST")))
+    `(lambda (,@args &rest ,rest-arg)
+       (declare (ignore ,rest-arg))
+       ,@body)))
+
 (defun safe-pull-feed (feed-url &aux (pop-times 0))
   "Handles date parsing errors in the feed: chronicity won't parse
    certain date formats, this catches the error and modifies the
    format to something chronicity can handle."
-  (flet ((pop-50-tokens (c)
-           (declare (ignore c))
-           (when (find-restart 'alimenta:pop-token) 
-             (if (< pop-times 50)
-                 (progn (incf pop-times)
-                        (format t "~&Processing error, trying to pop a token (popped ~d times)~%"
-                                pop-times)
-                        (alimenta:pop-token))
-                 (continue)))))
-    (handler-bind ((warning #'muffle-warning)
-                   (error #'pop-50-tokens))
-      (prog1-bind (feed (alimenta.pull-feed:pull-feed feed-url))
-        ;; Why am I decf-ing here?
-        (alimenta:transform feed
-                            (fw.lu:glambda (entity)
-                              (:method (entity))
-                              (:method ((entity alimenta:item))
-                                (setf (alimenta:content entity)
-                                      (html-sanitizer:sanitize (alimenta:content entity))))))
-        (decf pop-times)))))
+  (handler-bind ((warning #'muffle-warning)
+                 (error (lambda* (c)
+                          (when (find-restart 'alimenta:pop-token c)
+                            (cond
+                              ((< pop-times 50)
+                               (incf pop-times)
+                               (format t
+                                       "~&Processing error, trying to pop a token (popped ~d times)~%"
+                                       pop-times)
+                               (alimenta:pop-token))
+                              (t
+                               (continue)))))))
+    (prog1-bind (feed (alimenta.pull-feed:pull-feed feed-url))
+      ;; Why am I decf-ing here?
+      (alimenta:transform feed
+                          (fw.lu:glambda (entity)
+                            (:method (entity))
+                            (:method ((entity alimenta:item))
+                              (let ((v (alimenta:content entity)))
+                                (when v
+                                  (setf (alimenta:content entity)
+                                        (html-sanitizer:sanitize v)))))))
+      (decf pop-times))))
 
 (defmacro with-progress-message ((stream before after &optional (error-msg " ERROR~%~4t~a~%")) &body body)
   (once-only (before after stream)
@@ -115,10 +126,10 @@
                               (merge-pathnames path
                                                (stream-provider:root stream-provider)))))
     (handler-bind ((cl+ssl:ssl-error-verify
-                    (lambda (c)
-                      (declare (ignore c))
-                      (format *error-output* "~&SSL Error while pulling ~a~%"
-                              feed-url))))
+                     (lambda (c)
+                       (declare (ignore c))
+                       (format *error-output* "~&SSL Error while pulling ~a~%"
+                               feed-url))))
       (with-simple-restart (skip-feed "Stop processing for ~a" feed-url)
         (let* ((feed (with-retry ("Pull feed again.")
                        (normalize-feed feed-url (log-pull t)))))
@@ -139,7 +150,7 @@
 
 (defun archive-feeds-nondeterm ()
   (let* ((pull-time (local-time:now))
-         (pull-directory (get-store-directory-name pull-time)) 
+         (pull-directory (get-store-directory-name pull-time))
          (index-path (merge-pathnames "index.json" pull-directory))
          (feed-stream-provider (make-instance 'alimenta.feed-archive.encoders:feed-stream-provider
                                               :if-exists :error
@@ -157,34 +168,44 @@
                      (alimenta:feed-type c)
                      (alimenta:feed-link c))
              (funcall restart))
-           (fix-pathname-or-skip (c &key (restart 'skip-feed) (wrapped-condition nil wc-p))
+           (fix-pathname-or-skip (c &key
+                                      (restart 'skip-feed)
+                                      (wrapped-condition nil wc-p))
              (typecase (or wrapped-condition c)
                (alimenta:feed-type-unsupported (feed-type-unsupported c))
-               (otherwise
+               (t
                 (if (find-restart 'fix-pathname)
                     (fix-pathname)
-                    (progn (unless (eq restart 'continue)
-                             (format t "~&Skipping a feed... ~s~%"
-                                     (if wc-p
-                                         (alimenta.feed-archive.encoders:the-feed c)
-                                         "Unknown")))
-                           (funcall restart)))))))
+                    (if (find-restart 'alimenta.pull-feed:skip-feed)
+                        (alimenta.pull-feed:skip-feed c)
+                        (progn
+                          (unless (eq restart 'continue)
+                            (format t "~&Skipping a feed... ~s~%"
+                                    (if wc-p
+                                        (alimenta.feed-archive.encoders:the-feed c)
+                                        "Unknown")))
+                          (funcall restart))))))))
 
     (let ((error-count 0))
-      (handler-bind ((alimenta.feed-archive.encoders:feed-error
-                      (op (fix-pathname-or-skip _1 :wrapped-condition (alimenta.feed-archive.encoders:the-condition _1))))
-                     (alimenta:feed-type-unsupported #'feed-type-unsupported)
-                     ((or usocket:timeout-error usocket:ns-error cl+ssl:ssl-error-verify)
-                      (op (alimenta.pull-feed:skip-feed _)))
-                     
-                     (error
-                      (op
-                        (format t "~&Error signaled, ~a (count ~d)" _1 error-count)
-                        (incf error-count)
-                        (unless (< error-count 15)
-                          (format t " continuing~%")
-                          (fix-pathname-or-skip _1 :restart 'continue)))))
-        (multiple-value-bind (*feeds* *feed-base*) (funcall feed-list-initializer)
+      (handler-bind
+          ((alimenta.feed-archive.encoders:feed-error
+             (op (fix-pathname-or-skip
+                  _1 :wrapped-condition
+                  (alimenta.feed-archive.encoders:the-condition _1))))
+           (alimenta:feed-type-unsupported #'feed-type-unsupported)
+           ((or usocket:timeout-error usocket:ns-error cl+ssl:ssl-error-verify)
+             (op (alimenta.pull-feed:skip-feed _)))
+
+           (error
+             (op
+               (format t "~&Error signaled, ~a (count ~d)"
+                       _1 error-count)
+               (incf error-count)
+               (unless (< error-count 15)
+                 (format t " continuing~%")
+                 (fix-pathname-or-skip _1 :restart 'continue)))))
+        (multiple-value-bind (*feeds* *feed-base*)
+            (funcall feed-list-initializer)
           (alimenta.pull-feed:with-user-agent ("Feed Archiver v0.1b")
             (archive-feeds-nondeterm)))))))
 
@@ -208,11 +229,11 @@
                 (alexandria:hash-table-values ht2)))))
 
 (deftest feed-index ()
-    (should be hash-table=
-            (yason:parse
-             (with-output-to-string (s)
-               (feed-index s (local-time:encode-timestamp 0 0 0 0 1 1 1) '()))
-             :object-as :hash-table :json-arrays-as-vectors nil)
-            (alexandria:alist-hash-table
-             '(("pull-time" . "0001-01-01T00:00:00.000000-08:00")
-               ("feeds" . ())))))
+  (should be hash-table=
+          (yason:parse
+           (with-output-to-string (s)
+             (feed-index s (local-time:encode-timestamp 0 0 0 0 1 1 1) '()))
+           :object-as :hash-table :json-arrays-as-vectors nil)
+          (alexandria:alist-hash-table
+           '(("pull-time" . "0001-01-01T00:00:00.000000-08:00")
+             ("feeds" . ())))))

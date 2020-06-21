@@ -36,19 +36,19 @@
                    (items alimenta:items)
                    (link alimenta:link)
                    (source-type alimenta:source-type)
-                   (title alimenta:title)) feed)
-  (yason:with-output (stream :indent t)
-    (yason:with-object ()
-      (yason:encode-object-element "metadata" feed)
-      (yason:with-object-element ("items")
-        (yason:with-array ()
-          (dolist (item item-storage-info)
-            (with-simple-restart (skip-item "Skip item ~s" (car item))
-              ;; (format t "~&I Store Info: ~a~%~4t~a~%" (uiop:unix-namestring (cadr item)) root-dir)
-              (%encode-item root-dir item)
-              #+null
-              (yason:encode-array-element (uiop:unix-namestring (uiop:enough-pathname root-dir (cadr item))))
-              )))))))
+                   (title alimenta:title)) feed
+    (yason:with-output (stream :indent t)
+      (yason:with-object ()
+        (yason:encode-object-element "metadata" feed)
+        (yason:with-object-element ("items")
+          (yason:with-array ()
+            (dolist (item item-storage-info)
+              (with-simple-restart (skip-item "Skip item ~s" (car item))
+                ;; (format t "~&I Store Info: ~a~%~4t~a~%" (uiop:unix-namestring (cadr item)) root-dir)
+                (%encode-item root-dir item)
+                #+null
+                (yason:encode-array-element (uiop:unix-namestring (uiop:enough-pathname root-dir (cadr item))))
+                ))))))))
 
 (defmethod store ((items sequence) storage)
   (when (next-method-p)
@@ -73,14 +73,15 @@
                      (title alimenta:title)) feed
                                         ; We wrap all errors with our own condition
       (handler-bind ((error (lambda (c) (error 'feed-error :feed feed :condition c))))
-        (values (prog1-let ((feed-title title)
-                            (feed-store (get-feed-store-name feed directory)))
-                  (ensure-directories-exist feed-store)
-                  (with-open-file (index (merge-pathnames "index.json" feed-store) :direction :output)
-                    (%encode-feed-as-json feed
-                                          (store (copy-seq items) feed-store)
-                                          feed-store
-                                          index)))
+        (values (multiple-value-list
+                 (prog1-let ((feed-title title)
+                             (feed-store (get-feed-store-name feed directory)))
+                   (ensure-directories-exist feed-store)
+                   (with-open-file (index (merge-pathnames "index.json" feed-store) :direction :output)
+                     (%encode-feed-as-json feed
+                                           (store (copy-seq items) feed-store)
+                                           feed-store
+                                           index))))
                 feed-link)))))
 
 (defmethod store ((feed alimenta:feed) (stream stream))
@@ -104,14 +105,16 @@
            (let ((id (get-id item)))
              (merge-pathnames (make-pathname :name id :version nil :type "json") directory))))
 
-    (prog1-let ((item-title (alimenta:title item))
-                (fn (get-item-store-name item directory)))
-      (with-open-file (item-f fn :direction :output)
-        (yason:encode item item-f)))))
+    (multiple-value-list
+     (prog1-let ((item-title (alimenta:title item))
+                 (fn (get-item-store-name item directory)))
+       (with-open-file (item-f fn :direction :output)
+         (yason:encode item item-f))))))
 
 (defmethod store ((item alimenta:item) (stream stream))
   (yason:with-output (stream :indent t)
-    (yason:encode-slots item))
+    (yason:with-object ()
+      (yason:encode-slots item)))
   (list (alimenta:title item)
         stream))
 
@@ -133,8 +136,14 @@
   (let ((id (get-id item)))
     (make-pathname :name id :version nil :type "json")))
 
-(defclass feed-stream-provider (stream-provider:file-provider)
+(defclass feed-stream-item-provider ()
   ((%item-providers :accessor item-providers :initform (make-hash-table :test 'equal))))
+
+(defclass feed-stream-provider (stream-provider:file-provider feed-stream-item-provider)
+  ())
+
+(defclass feed-stream-string-provider (stream-provider:string-provider feed-stream-item-provider)
+  ())
 
 (defmethod stream-provider:get-nested-provider ((provider stream-provider:stream-provider) (streamable alimenta:feed))
   (with (items-root (uiop:merge-pathnames* (uiop:pathname-directory-pathname (stream-provider:stream-key provider streamable))
@@ -173,10 +182,11 @@
       (let* ((item-provider (stream-provider:get-nested-provider stream-provider feed))
              (item-storage-info (map-coalesce (op (store _ item-provider))
                                               items)))
-        (yason:with-output (s :indent t)
+        (let ((yason::*json-output*
+                (make-instance 'yason::json-output-stream
+                               :output-stream s
+                               :indent t)))
           (with-collection (item "items" item-storage-info "metadata" feed)
             (destructuring-bind (title path) item
               (yason:with-object ()
-                (yason:encode-object-elements
-                 "title" title
-                 "path" path)))))))))
+                (yason:encode-object-elements "title" title "path" path)))))))))

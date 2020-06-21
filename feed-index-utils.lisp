@@ -12,17 +12,18 @@
 
 (defun make-feed-index (pull-time references)
   (make-instance 'feed-index
-		 :pull-time pull-time
-		 :references (copy-seq references)))
+                 :pull-time pull-time
+                 :references (copy-seq references)))
 
 (defun make-feed-reference (url &rest feed-data &key title path)
   (declare (ignore title path))
   (apply #'make-instance 'feed-reference
-	 :url url feed-data))
+         :url url
+         feed-data))
 
 (defmethod yason:encode-slots progn ((object feed-reference))
   (let ((title (title object))
-	(path (path object)))
+        (path (path object)))
     (yason:encode-object-element "url" (url object))
     (when title
       (yason:encode-object-element "title" title))
@@ -34,4 +35,4 @@
     (yason:encode-object-element "pull-time" (local-time:format-timestring nil pull-time))
     (yason:with-object-element ("feeds")
       (yason:with-array ()
-	(mapcar 'yason:encode-object references)))))
+        (mapcar 'yason:encode-object references)))))
