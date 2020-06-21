@@ -4,8 +4,8 @@
   :license "MIT"
   :depends-on (#:alexandria
                #:alimenta
-               #:fwoar.lisputils
-               #:alimenta+patmatch
+               #:fwoar-lisputils
+               #:alimenta/patmatch
                #:ironclad
                #:local-time
                #:serapeum
