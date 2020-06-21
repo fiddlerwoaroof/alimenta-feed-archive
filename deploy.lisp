@@ -1,8 +1,50 @@
-(load (truename "~/quicklisp/setup.lisp"))
-(push "/home/edwlan/github_repos/alimenta-feed-archive/" asdf:*central-registry*)
+(handler-case (logical-pathname-translations "SYS")
+  (error ()
+    (setf (logical-pathname-translations "SYS") nil)))
+
+(pushnew
+ `(#p"SYS:SITE;**;*.*.*"
+     ,(merge-pathnames
+       (make-pathname :directory (list
+                                  :relative ".sbcl" "site"
+                                  :wild-inferiors)
+                      :name :wild
+                      :type :wild)
+       (user-homedir-pathname)))
+ (logical-pathname-translations "SYS")
+ :test #'equal
+ :key (lambda (it) (namestring (car it))))
+
+(mapcar (lambda (it)
+          (with-open-file (s it :direction :input
+                                :element-type 'character)
+            (setf (logical-pathname-translations (string-upcase
+                                                  (pathname-name it)))
+                  (read s))))
+        (directory #p"SYS:SITE;*.translations"))
+
+(load (truename #p"QL:setup.lisp"))
+
+(push (truename #p"PROJECTS:alimenta-feed-archive;")
+      asdf:*central-registry*)
+
 (ql:quickload :alimenta-feed-archive)
-(#+ccl ccl:save-application
- #+sbcl save-lisp-and-die
- "feed-archiver"
- #+sbcl :executable  #+ccl :prepend-kernel t
- #+sbcl :toplevel #+ccl :toplevel-function #'alimenta.feed-archive:command-line-main)
+
+#+(or)
+(setf sb-alien::*shared-objects* nil)
+
+#+sbcl
+(defun do-sbcl ()
+  (save-lisp-and-die "feed-archiver"
+                     :executable t
+                     :toplevel #'alimenta.feed-archive:command-line-main))
+
+#+ccl
+(defun do-ccl ()
+  (ccl:save-application
+   "feed-archiver"
+   :prepend-kernel t
+   :toplevel-function #'alimenta.feed-archive:command-line-main))
+
+(#+sbcl do-sbcl
+ #+ccl do-ccl)
