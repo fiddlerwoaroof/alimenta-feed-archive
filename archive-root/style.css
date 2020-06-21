@@ -1,3 +1,54 @@
+:root {
+    --zenburn-fg-plus-2: #FFFFEF;
+    --zenburn-fg-plus-1: #F5F5D6;
+    --zenburn-fg: #DCDCCC;
+    --zenburn-fg-1: #A6A689;
+    --zenburn-fg-2: #656555;
+    --zenburn-black: #000000;
+    --zenburn-bg-2: #000000;
+    --zenburn-bg-1: #2B2B2B;
+    --zenburn-bg-05: #383838;
+    --zenburn-bg: #3F3F3F;
+    --zenburn-bg-plus-05: #494949;
+    --zenburn-bg-plus-1: #4F4F4F;
+    --zenburn-bg-plus-2: #5F5F5F;
+    --zenburn-bg-plus-3: #6F6F6F;
+    --zenburn-red-plus-2: #ECB3B3;
+    --zenburn-red-plus-1: #DCA3A3;
+    --zenburn-red: #CC9393;
+    --zenburn-red-1: #BC8383;
+    --zenburn-red-2: #AC7373;
+    --zenburn-red-3: #9C6363;
+    --zenburn-red-4: #8C5353;
+    --zenburn-red-5: #7C4343;
+    --zenburn-red-6: #6C3333;
+    --zenburn-orange: #DFAF8F;
+    --zenburn-yellow: #F0DFAF;
+    --zenburn-yellow-1: #E0CF9F;
+    --zenburn-yellow-2: #D0BF8F;
+    --zenburn-green-5: #2F4F2F;
+    --zenburn-green-4: #3F5F3F;
+    --zenburn-green-3: #4F6F4F;
+    --zenburn-green-2: #5F7F5F;
+    --zenburn-green-1: #6F8F6F;
+    --zenburn-green: #7F9F7F;
+    --zenburn-green-plus-1: #8FB28F;
+    --zenburn-green-plus-2: #9FC59F;
+    --zenburn-green-plus-3: #AFD8AF;
+    --zenburn-green-plus-4: #BFEBBF;
+    --zenburn-cyan: #93E0E3;
+    --zenburn-blue-plus-3: #BDE0F3;
+    --zenburn-blue-plus-2: #ACE0E3;
+    --zenburn-blue-plus-1: #94BFF3;
+    --zenburn-blue: #8CD0D3;
+    --zenburn-blue-1: #7CB8BB;
+    --zenburn-blue-2: #6CA0A3;
+    --zenburn-blue-3: #5C888B;
+    --zenburn-blue-4: #4C7073;
+    --zenburn-blue-5: #366060;
+    --zenburn-magenta: #DC8CC3;
+}
+
 * {
     box-sizing: border-box;
     transition: font-size 0.2s ease;
@@ -6,14 +57,14 @@
 body {
     margin: 0px;
     font-family: 'Lato', 'Alegreya Sans', sans-serif;
-    background: #002b36;
-    color: #fdf6e3;
+  background: var(--zenburn-bg);
+  color: var(--zenburn-fg);
     font-weight: 300;
 }
 
 .current {
-    background-color: #073642;
-    color: #93a1a1;
+  background-color: var(--zenburn-bg-plus-1);
+  color: var(--zenburn-fg-plus-1);
 }
 
 
@@ -27,8 +78,9 @@ body {
 }
 
 a {
-    color: #28b0b1;
+  color: var(--zenburn-fg);
     border: thin solid transparent;
+  cursor: pointer;
 }
 
 .current_feed a, .feeds a {
@@ -41,8 +93,8 @@ a {
 }
 
 a:hover {
-    border-color: #28b0b1;
-    background-color: #073642;
+  border-color: var(--zenburn-blue-1);
+  background-color: var(--zenburn-fg-1);
 }
 
 a:focus {
@@ -83,8 +135,8 @@ header * {
 
 #container > header {
     width: 100vw;
-    background: #073642;
-    border-bottom: 4px double #6c71c4;
+  background: var(--zenburn-bg);
+  border-bottom: 4px double var(--zenburn-green);
     box-sizing: border-box;
     position: absolute;
     display: block;
@@ -108,7 +160,7 @@ header * {
     float: left;
     text-align: right;
     padding-right: 1em;
-    border-right: 3px #28b0b1 double;
+  border-right: 3px var(--zenburn-green) double;
     transition: width 0.2s ease, padding 0.2s ease;
     overflow: hidden;
 }
@@ -191,8 +243,12 @@ h1, h2, h3, h4, h5, h6 {
     bottom: 0.5em;
 }
 
+.like_button {
+    padding: 0.3em;
+}
+
 #container > .left {
-    border-right: 4px #28b0b1 double;
+  border-right: 4px var(--zenburn-blue) double;
     width: 50vw;
     overflow: hidden;
     box-sizing: border-box;
@@ -264,16 +320,18 @@ div.description {
 .collapse-toggle {
     position: absolute;
     right: 1em;
-    top: 50%;
+    top: 30%;
     transform: translateY(-50%);
+    padding: 0.3em;
+    border-radius: 0.3em;
 }
 
 
 .code, code, pre {
     white-space: pre;
-    background: hsla(0,0%,0%, 0.5);
-    border: 1px solid #fdf6e3;
     font-family: 'Source Code Pro', monospace;
+  background: var(--zenburn-bg-2);
+  border: 1px solid var(--zenburn-fg);
     font-size: 10px;
 }
 

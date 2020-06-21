@@ -68,7 +68,7 @@
 	    <div :class="{'right':true, 'v-expand': collapsed}" >
 		<h2 v-if="current_item.title !== null" class="article-title">
 		    <a href="{{current_item.link}}">{{current_item.title}}</a>
-		    <button @click="like(current_item, current_feed)">&lt3</button>
+		    <button class="like_button" @click="like(current_item, current_feed)">&lt3</button>
 		</h2>
 		<div v-if="current_item.title !== null" class="article-container">
 		    <h3>{{current_item.author}}</h3>
