@@ -6,7 +6,6 @@
 (defparameter +dirname-format+
   '((:year 4) #\- (:month 2) #\- (:day 2) #\/ (:hour 2) #\- (:min 2) #\/))
 
-
 (defmacro lambda* ((&rest args) &body body)
   (let ((rest-arg (gensym "REST")))
     `(lambda (,@args &rest ,rest-arg)
@@ -35,9 +34,9 @@
                           (lambda (entity)
                             (typecase entity
                               (alimenta:item
-                              (let ((v (alimenta:content entity)))
-                                (when v
-                                  (setf (alimenta:content entity)
+                               (let ((v (alimenta:content entity)))
+                                 (when v
+                                   (setf (alimenta:content entity)
                                          (html-sanitizer:sanitize v))))))))
       (decf pop-times))))
 
@@ -102,14 +101,14 @@
                        (format *error-output* "~&SSL Error while pulling ~a~%"
                                feed-url))))
       (restart-case
-        (let* ((feed (with-retry ("Pull feed again.")
-                       (normalize-feed feed-url (log-pull t)))))
-          (trivia:match (store feed stream-provider)
-            ((list title path)
-             (log-serialization t feed path)
-             (make-feed-reference (alimenta:feed-link feed)
-                                  :title title
-                                  :path (feed-relative-pathname
+          (let* ((feed (with-retry ("Pull feed again.")
+                         (normalize-feed feed-url (log-pull t)))))
+            (trivia:match (store feed stream-provider)
+              ((list title path)
+               (log-serialization t feed path)
+               (make-feed-reference (alimenta:feed-link feed)
+                                    :title title
+                                    :path (feed-relative-pathname
                                            (stream-provider:absolute-path stream-provider path))))))
         (skip-feed ()
           :report (lambda (s)

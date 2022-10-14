@@ -63,13 +63,13 @@ next time, it re-raises the exception."
   (with-gensyms (start restarted)
     `(let ((,restarted nil))
        (tagbody ,start
-	  (restart-case
-	      (progn ,@body)
-	    (,restart-name ,restart-args
-	      ,@handler
-	      (unless ,restarted
-		(setf ,restarted t)
-		(go ,start))))))))
+	        (restart-case
+	            (progn ,@body)
+	          (,restart-name ,restart-args
+	            ,@handler
+	            (unless ,restarted
+		            (setf ,restarted t)
+		            (go ,start))))))))
 
 
 (defun relative-uri-p (uri)
@@ -97,7 +97,7 @@ next time, it re-raises the exception."
 
 (defmacro with-retry ((&optional (message "retry the operation")) &body body)
   `(loop
-      (restart-case (return (progn ,@body))
-	(retry ()
-	  :report (lambda (s)
-		    (format s "~@<~a~@:>" ,message))))))
+     (restart-case (return (progn ,@body))
+	     (retry ()
+	       :report (lambda (s)
+		               (format s "~@<~a~@:>" ,message))))))
