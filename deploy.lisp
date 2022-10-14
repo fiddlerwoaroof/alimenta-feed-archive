@@ -30,6 +30,8 @@
 
 (ql:quickload :alimenta-feed-archive)
 
+(load #p"PROJECTS:alimenta-feed-archive;main.lisp")
+
 #+(or)
 (setf sb-alien::*shared-objects* nil)
 

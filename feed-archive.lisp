@@ -49,8 +49,8 @@
                                ,@body)
          (format ,stream " ~a~%" ,after)))))
 
-(defun skip-feed ()
-  (when-let ((restart (find-restart 'skip-feed)))
+(defun skip-feed (c)
+  (when-let ((restart (find-restart 'skip-feed c)))
     (invoke-restart restart)))
 
 (defun save-feed (feed output-file &key (if-exists :supersede))
@@ -69,7 +69,7 @@
 
 (defun log-serialization (feed-url stream feed path)
   (declare (ignorable feed-url stream feed path))
-  (with-progress-message (stream "Serializing XML" (format nil "done with ~a" feed-url))
+  (with-progress-message (stream "Serializing XML" (format nil "done with ~a at ~a" feed-url path))
     (save-feed feed (merge-pathnames "feed.xml" path))))
 
 (defun feed-relative-pathname (path &optional (feed-base *feed-base*))

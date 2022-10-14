@@ -27,6 +27,7 @@
 (defmethod yason:encode-slots progn ((object feed-reference))
   (let ((title (title object))
         (path (path object)))
+    (format *error-output* "~&title: ~s path: ~s~%" title (directory-of path))
     (yason:encode-object-element "url" (url object))
     (when title
       (yason:encode-object-element "title" title))
