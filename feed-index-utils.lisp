@@ -21,6 +21,9 @@
          :url url
          feed-data))
 
+(defun directory-of (pathname)
+  (make-pathname :directory (pathname-directory pathname)))
+
 (defmethod yason:encode-slots progn ((object feed-reference))
   (let ((title (title object))
         (path (path object)))
@@ -28,7 +31,7 @@
     (when title
       (yason:encode-object-element "title" title))
     (when path
-      (yason:encode-object-element "path" path))))
+      (yason:encode-object-element "path" (directory-of path)))))
 
 (defmethod yason:encode-slots progn ((object feed-index))
   (with-accessors ((pull-time pull-time) (references references)) object
