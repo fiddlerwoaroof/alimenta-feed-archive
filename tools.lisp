@@ -48,7 +48,9 @@
 (defun older-than-a-month (date)
   (let ((month-ago (local-time:timestamp- (local-time:now)
 					  31 :day)))
-    (local-time:timestamp< date month-ago)))
+    (if date
+        (local-time:timestamp< date month-ago)
+        t)))
 
 (defun older-than-a-week (date)
   (let ((week-ago (local-time:timestamp- (local-time:now)
