@@ -72,10 +72,28 @@ next time, it re-raises the exception."
 		(go ,start))))))))
 
 
+(defun relative-uri-p (uri)
+  (let ((uri (puri:uri uri)))
+    (not
+     (and (puri:uri-scheme uri)
+          (puri:uri-host uri)
+          t))))
+
 (defun coerce-feed-link (link feed)
-  (prog1 feed
-    (unless (alimenta:feed-link feed)
-      (setf (alimenta:feed-link feed) link))))
+  (flet ((unrelativize (url)
+           (puri:render-uri (puri:merge-uris url
+                                             link)
+                            nil)))
+    (prog1 feed
+      (unless (and (alimenta:feed-link feed)
+                   (not (relative-uri-p (alimenta:feed-link feed))))
+        (setf (alimenta:feed-link feed)
+              (if (alimenta:feed-link feed)
+                  (unrelativize (alimenta:feed-link feed))
+                  link)))
+      (when (relative-uri-p (alimenta:link feed))
+        (setf (alimenta:link feed)
+              (unrelativize (alimenta:link feed)))))))
 
 (defmacro with-retry ((&optional (message "retry the operation")) &body body)
   `(loop
