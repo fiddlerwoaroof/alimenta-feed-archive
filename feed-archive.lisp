@@ -83,6 +83,10 @@
                     :references (remove-if 'null references)))))
 
 
+(defvar *error-client* nil)
+(defgeneric record-error (client url)
+  (:method ((client null) feed-url)))
+
 (defun pull-and-store-feed (feed-url stream-provider &optional (feed-puller #'safe-pull-feed))
   (declare (optimize (debug 3)))
   (flet ((log-pull (stream)
@@ -98,7 +102,7 @@
                        (declare (ignore c))
                        (format *error-output* "~&SSL Error while pulling ~a~%"
                                feed-url))))
-      (with-simple-restart (skip-feed "Stop processing for ~a" feed-url)
+      (restart-case
         (let* ((feed (with-retry ("Pull feed again.")
                        (normalize-feed feed-url (log-pull t)))))
           (trivia:match (store feed stream-provider)
@@ -110,6 +114,10 @@
                                          (uiop:pathname-directory-pathname
                                           (merge-pathnames path
                                                            (stream-provider:root stream-provider))))))))))))
+        (skip-feed ()
+          :report (lambda (s)
+                    (format s "Stop processing for ~a" feed-url))
+          (record-error *error-client* feed-url))))))
 
 (defun archive-feeds (pull-time pull-directory index-stream)
   (prog1-bind (references (mapcar (op (pull-and-store-feed _ pull-directory))
