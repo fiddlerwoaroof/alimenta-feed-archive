@@ -64,13 +64,13 @@
     (prog1-bind (feed (alimenta.pull-feed:pull-feed feed-url))
       ;; Why am I decf-ing here?
       (alimenta:transform feed
-                          (fw.lu:glambda (entity)
-                            (:method (entity))
-                            (:method ((entity alimenta:item))
+                          (lambda (entity)
+                            (typecase entity
+                              (alimenta:item
                               (let ((v (alimenta:content entity)))
                                 (when v
                                   (setf (alimenta:content entity)
-                                        (html-sanitizer:sanitize v)))))))
+                                         (html-sanitizer:sanitize v))))))))
       (decf pop-times))))
 
 (defmacro with-progress-message ((stream before after &optional (error-msg " ERROR~%~4t~a~%")) &body body)
