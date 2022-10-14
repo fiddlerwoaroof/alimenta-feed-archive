@@ -95,8 +95,7 @@
          (log-serialization (stream feed path)
            (declare (inline) (dynamic-extent stream))
            (log-serialization feed-url stream feed
-                              (merge-pathnames path
-                                               (stream-provider:root stream-provider)))))
+                              (stream-provider:absolute-path stream-provider path))))
     (handler-bind ((cl+ssl:ssl-error-verify
                      (lambda (c)
                        (declare (ignore c))
@@ -111,9 +110,7 @@
              (make-feed-reference (alimenta:feed-link feed)
                                   :title title
                                   :path (feed-relative-pathname
-                                         (uiop:pathname-directory-pathname
-                                          (merge-pathnames path
-                                                           (stream-provider:root stream-provider))))))))))))
+                                           (stream-provider:absolute-path stream-provider path))))))
         (skip-feed ()
           :report (lambda (s)
                     (format s "Stop processing for ~a" feed-url))
