@@ -25,6 +25,9 @@
 
 (load (truename #p"QL:setup.lisp"))
 
+(asdf:load-asd #p"PROJECTS:COLLECTION-CLASSES;COLLECTION-CLASS.ASD")
+(asdf:load-asd #p"PROJECTS:ALIMENTA;ALIMENTA.ASD")
+
 (push (truename #p"PROJECTS:alimenta-feed-archive;")
       asdf:*central-registry*)
 
