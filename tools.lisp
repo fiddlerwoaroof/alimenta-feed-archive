@@ -73,11 +73,12 @@ next time, it re-raises the exception."
 
 
 (defun relative-uri-p (uri)
-  (let ((uri (puri:uri uri)))
-    (not
-     (and (puri:uri-scheme uri)
-          (puri:uri-host uri)
-          t))))
+  (let ((uri (fw.lu:may (puri:uri uri))))
+    (and uri
+         (not
+          (and (puri:uri-scheme uri)
+               (puri:uri-host uri)
+               t)))))
 
 (defun coerce-feed-link (link feed)
   (flet ((unrelativize (url)
