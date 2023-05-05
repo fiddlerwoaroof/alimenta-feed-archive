@@ -30,6 +30,12 @@
   (pushnew feed
            (ubiquitous:value :feeds)
            :test #'equalp))
+(defun append-feed (feed)
+  (init-feeds)
+  (setf (ubiquitous:value :feeds)
+        (append (remove feed (ubiquitous:value :feeds)
+                        :test 'equalp)
+                (list feed))))
 
 (defun archive-feeds-nondeterm ()
   (let* ((pull-time (local-time:now))
