@@ -86,7 +86,8 @@
                 usocket:socket-error
                 cl+ssl:ssl-error-verify
                 storage-condition
-                type-error)
+                type-error
+                plump-dom:invalid-xml-character)
              (op
                (format t "~&Error pulling feed, skipping: ~s~%" _1)
                (skip-feed _1)))
